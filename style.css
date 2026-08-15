@@ -37,6 +37,13 @@
   --ease-screen: ease-in-out;
   --dur-screen-out: 200ms;
   --dur-screen-in: 200ms;
+
+  /* ===== 콘텐츠 묶음의 세로 위치 =====
+     상단 아이콘·하트·얼굴·버튼·하단 멘트를 한 덩어리로 올린다.
+     아이콘이 시안에서 y61 이고 화면 위 30px 에 와야 하므로 31px 위로.
+     세로 위치를 다시 바꿀 일이 생기면 이 값 하나만 고치면 된다.
+     요소들의 left 와 서로 간의 세로 간격은 여기서 건드리지 않는다. */
+  --content-shift: -31px;
 }
 
 * { box-sizing: border-box; }
@@ -72,13 +79,12 @@ body {
   justify-content: center;
   overflow: hidden;
 
-  /* 노치·홈바를 피한다. viewport-fit=cover 라 이걸 안 두면
-     화면 위아래 끝이 시스템 UI 에 가린다.
-     script.js 의 fitApp() 이 이 값을 읽어 쓸 수 있는 공간을 계산한다. */
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
+  /* safe-area 만큼 여백을 두지 않는다.
+     여백을 두면 앱이 화면보다 작아져 위아래에 띠가 생기는데,
+     스플래시(물 아래 크림색 띠)와 BREATH_DONE(위쪽 색 어긋남)에서
+     그 띠가 그대로 드러나 "반응형이 안 걸린 화면"처럼 보였다.
+     아이폰의 화면 비율이 375:812 와 거의 같아서, 여백을 빼지 않으면
+     앱이 화면을 가득 채운다. */
 }
 
 button {
@@ -160,6 +166,18 @@ button:hover {
    버튼을 누르고 뗄 때마다 화면이 올라오면 버튼에 효과가 붙은 것처럼 보인다. */
 .screen.is-instant { transition: none; }
 
+/* 화면 안의 콘텐츠를 한 덩어리로 묶어 통째로 올린다.
+   배경(.screen 자체)과 화면 전체를 덮는 비(.cry__rain)는 묶음 밖이라
+   자리를 지키고, 내부 요소들의 좌표는 시안 값 그대로 둔다. */
+.screen__shift {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 375px;
+  height: 812px;
+  transform: translateY(var(--content-shift));
+}
+
 /* ================= 상단 아이콘 (시안 Frame 11) =================
    x287 y61 73x29. 속도 29x29 + 15px 간격 + 소리 29x29.
    색은 아이콘 SVG 안에 #494949 로 들어 있다. 7개 화면 모두 같은 값이다. */
@@ -170,6 +188,8 @@ button:hover {
   width: 73px;
   height: 29px;
   z-index: 10; /* 어떤 화면 요소보다도 위 */
+  /* 화면 안 콘텐츠와 같은 만큼 올라간다 (y61 → y30) */
+  transform: translateY(var(--content-shift));
 }
 
 /* 아이콘은 시안대로 29x29 지만, 손가락에는 29px 이 너무 작다.
@@ -332,12 +352,11 @@ button:hover {
 .splash__title { margin: 0; font-size: var(--fs-hand-title); line-height: var(--lh-hand); }
 .splash__subtitle { margin: 0; font-size: var(--fs-hand-sub); line-height: var(--lh-hand); }
 
-/* 로딩 숫자. 수면 바로 위에 붙어 물과 함께 올라간다.
-   top 은 물 높이에 따라 매 프레임 script.js 가 정한다.
-   물 위(연한 하늘색)에서도 물 아래에서도 읽히는 색이다. */
-.splash__level {
+/* 로딩 숫자는 시안대로 화면 아래에 고정. 물만 차오른다. */
+.splash__percent {
   position: absolute;
   left: 0;
+  top: 764px;
   width: 375px;
   height: 18px;
   margin: 0;
@@ -600,12 +619,14 @@ button:hover {
 }
 
 /* Frame 4 (하단 패널) */
+/* 묶음이 위로 올라간 만큼 아래를 늘려 화면 바닥까지 계속 덮는다.
+   안 그러면 패널 밑에 배경이 드러나는 띠가 생긴다. */
 .cry__panel {
   position: absolute;
   left: 0;
   top: 483px;
   width: 375px;
-  height: 329px;
+  height: calc(329px - var(--content-shift));
   overflow: hidden;
 }
 

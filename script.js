@@ -584,23 +584,12 @@ function renderSplashText() {
 
 // 물 높이는 소수점까지 그대로 쓴다. 정수로 반올림하면 8px 씩 계단으로 튄다.
 // 화면에 적히는 숫자만 정수로 내린다.
-// 숫자는 수면 바로 위에 붙어 물과 같이 올라간다.
-// 물이 꼭대기에 닿으면 더 올라갈 자리가 없으므로 위아래 24px 안에서 멈춘다.
-const LEVEL_GAP_PX = 28;   // 수면에서 숫자까지
-const LEVEL_MIN_TOP = 24;
-const LEVEL_MAX_TOP = 812 - 40;
-
+// 숫자는 시안대로 화면 아래(y764)에 고정이다. 물만 차오르고 값만 바뀐다.
 function renderSplashProgress() {
   const shown = splashPercent + " %";
+  el("splashPercent").textContent = shown;
+  el("splashLoadingPercent").textContent = shown;
   el("splashWater").style.height = splashFill.toFixed(3) + "%";
-
-  const surfaceY = 812 * (1 - splashFill / 100);
-  const levelTop = Math.min(LEVEL_MAX_TOP, Math.max(LEVEL_MIN_TOP, surfaceY - LEVEL_GAP_PX));
-  ["splashLevel", "splashLoadingLevel"].forEach((id) => {
-    const node = el(id);
-    node.textContent = shown;
-    node.style.top = levelTop.toFixed(1) + "px";
-  });
 
   const id = activeScreenId("SPLASH");
   if (id !== splashScreenId) {
@@ -1129,15 +1118,13 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
 // 쓸 수 있는 공간 = 실제로 보이는 영역에서 노치·홈바(safe-area)를 뺀 것.
 // visualViewport 는 아이폰에서 주소창이 접히거나 펼쳐지는 것까지 반영한다.
 function fitApp() {
+  // visualViewport 는 아이폰에서 주소창이 접히거나 펼쳐지는 것까지 반영한다.
   const vv = window.visualViewport;
-  const cs = getComputedStyle(document.body);
-  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-  const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-
-  const availW = (vv ? vv.width : window.innerWidth) - padX;
-  const availH = (vv ? vv.height : window.innerHeight) - padY;
+  const availW = vv ? vv.width : window.innerWidth;
+  const availH = vv ? vv.height : window.innerHeight;
 
   // 가로·세로 중 작은 비율을 쓴다. 그래야 375x812 비율이 그대로 유지된다.
+  // safe-area 를 빼지 않는다. 빼면 앱이 화면보다 작아져 띠가 생긴다.
   const scale = Math.min(availW / 375, availH / 812);
   document.documentElement.style.setProperty("--app-scale", scale.toFixed(4));
 }
