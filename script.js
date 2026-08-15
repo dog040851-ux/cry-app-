@@ -119,7 +119,8 @@ const SCREEN_OUT_MS = (() => {
 })();
 
 // 조용하고 느린 앱. 급하게 움직이는 요소가 없어야 한다.
-const SPLASH_DURATION_MS = 14000;
+// 물 차오름과 % 증가가 모두 이 값 하나에서 나온다. 줄이면 둘 다 같이 빨라진다.
+const SPLASH_DURATION_MS = 7000;
 const CRY_MESSAGE_INTERVAL_MS = 6500; // 시안에 없음
 const BREATH_INTRO_MS = 3200;         // 시안에 없음
 
@@ -405,6 +406,7 @@ const appEl = document.getElementById("app");
 const backdropEl = document.getElementById("backdrop");
 const backdropWaterEl = document.getElementById("backdropWater");
 const stageEl = document.getElementById("stage");
+const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 const el = (id) => document.getElementById(id);
 const rand = (min, max) => min + Math.random() * (max - min);
 
@@ -506,6 +508,9 @@ function syncBackdrop(screen) {
 
   document.body.style.backgroundColor = edge;
   backdropEl.style.backgroundColor = edge;
+  // 안드로이드 크롬의 상단 바 색도 화면 따라 바뀐다.
+  // (아이폰은 black-translucent 라 .backdrop 이 그 자리까지 직접 칠한다.)
+  if (themeColorMeta) themeColorMeta.setAttribute("content", edge);
   backdropEl.style.backgroundImage = bg && bg !== "none" ? bg : "none";
   backdropEl.style.backgroundSize = size || "100% 100%";
   backdropEl.style.backgroundPosition = position || "center";

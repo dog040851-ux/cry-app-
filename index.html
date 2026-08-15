@@ -20,9 +20,11 @@
 <!-- 홈 화면에 추가했을 때 브라우저 UI 없이 전체화면으로 열린다 -->
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<!-- default = 밝은 배경에 검은 글씨. 앱 배경(#FFFDFA)이 밝아서 이 값이 맞다.
-     black-translucent 로 두면 상태바 아래로 화면이 파고들어 상단 아이콘과 겹친다. -->
-<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<!-- black-translucent : 상태바 자리까지 화면이 올라간다.
+     그래야 그 영역도 앱 배경(.backdrop)으로 칠해지고 흰 띠가 남지 않는다.
+     내용이 상태바에 가리지 않는 건 body 의 padding-top: env(safe-area-inset-top)
+     이 맡는다. (default 로 두면 그 자리를 시스템이 흰색으로 채운다.) -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="울몽" />
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 

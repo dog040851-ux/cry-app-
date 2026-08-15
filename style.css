@@ -406,13 +406,12 @@ button:hover {
 .splash__subtitle { margin: 0; font-size: var(--fs-hand-sub); line-height: var(--lh-hand); }
 
 /* 로딩 숫자는 화면 아래에 고정. 물만 차오르고 값만 바뀐다.
-   시안은 y764(바닥에서 30px)지만 사파리 하단 바에 가려서
-   바닥에서 넉넉히 띄우고 홈바 높이까지 더한다. */
+   시안 1936:28619 : x175 y764 26x18 (가운데 정렬이라 left 는 0, width 375).
+   앱 상자가 화면 안에 다 들어오므로 이 자리 그대로도 하단 바에 가리지 않는다. */
 .splash__percent {
   position: absolute;
   left: 0;
-  top: auto;
-  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  top: 764px;
   width: 375px;
   height: 18px;
   margin: 0;
