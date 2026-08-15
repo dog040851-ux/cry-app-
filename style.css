@@ -349,21 +349,6 @@ button:hover {
   pointer-events: none;
 }
 
-/* 시작 화면(1976:23)의 "100 %" 는 시안대로 화면 맨 아래에 그대로 둔다 */
-.splash__percent {
-  position: absolute;
-  left: 0;
-  top: 764px;
-  width: 375px;
-  height: 18px;
-  margin: 0;
-  text-align: center;
-  white-space: nowrap;
-  font-size: var(--fs-body);
-  line-height: normal;
-  color: var(--color-text-body);
-}
-
 /* ========== 화면을 눌러 시작하기 (1976:23) ==========
    물이 화면을 가득 채운 상태다. 시안 Vector 59 는 x-6 y-52 389x874 라
    파도 마루가 화면 위로 빠져 있어 안에서는 평평한 물면만 보인다.

@@ -193,12 +193,67 @@ let audioUnlocked = false;
 // 트랙별 목표 볼륨. 0 이면 꺼진 것으로 본다. (음소거와 별개)
 const soundLevel = { bgm: 0, rain: 0, breath: 0 };
 
+// ===== 왜 Web Audio 를 쓰는가 =====
+// iOS Safari 는 audio.volume 에 값을 넣어도 무시한다. 볼륨은 기기의
+// 하드웨어 버튼으로만 정해진다. 그래서 아이폰에서는 음소거도, 페이드도
+// 전혀 걸리지 않았다(아이콘만 바뀌고 소리는 그대로).
+// 각 트랙을 GainNode 로 통과시키고 gain 을 조절하면 iOS 에서도 동작한다.
+// AudioContext 는 사용자가 화면을 처음 누를 때(unlockAudio) 만든다.
+let audioCtx = null;
+
+function trackVolume(t) {
+  if (!t || !t.audio) return 0;
+  return t.gain ? t.gain.gain.value : t.audio.volume;
+}
+
+function setTrackVolume(t, v) {
+  if (!t || !t.audio) return;
+  const clamped = Math.max(0, Math.min(1, v));
+  if (t.gain) t.gain.gain.value = clamped;
+  else t.audio.volume = clamped; // Web Audio 를 못 쓰는 환경용
+}
+
+// 트랙을 GainNode 에 연결한다. 요소마다 딱 한 번만 할 수 있다.
+function routeThroughGain() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx || audioCtx) return;
+
+  try {
+    audioCtx = new Ctx();
+  } catch (e) {
+    return; // 못 만들면 audio.volume 으로 그대로 간다
+  }
+
+  Object.keys(tracks).forEach((name) => {
+    const t = tracks[name];
+    if (!t.audio || t.gain) return;
+    try {
+      const source = audioCtx.createMediaElementSource(t.audio);
+      const gain = audioCtx.createGain();
+      gain.gain.value = t.audio.volume;
+      source.connect(gain);
+      gain.connect(audioCtx.destination);
+      t.gain = gain;
+    } catch (e) {
+      /* 이 트랙만 예전 방식으로 둔다 */
+    }
+  });
+}
+
+// iOS 는 화면을 벗어났다 돌아오면 컨텍스트를 재워둔다. 필요할 때마다 깨운다.
+function resumeAudioCtx() {
+  if (audioCtx && audioCtx.state === "suspended") {
+    const p = audioCtx.resume();
+    if (p && p.catch) p.catch(() => {});
+  }
+}
+
 function buildTracks() {
   Object.keys(SOUND).forEach((name) => {
     // 아직 없는 파일은 Audio 객체를 아예 만들지 않는다.
     // 아래 함수들은 전부 audio 가 없으면 조용히 건너뛴다.
     if (SOUND[name].pending) {
-      tracks[name] = { audio: null, rafId: null, failed: true };
+      tracks[name] = { audio: null, gain: null, rafId: null, failed: true };
       return;
     }
 
@@ -208,7 +263,7 @@ function buildTracks() {
     audio.volume = 0;
     // 파일을 못 읽어도 앱은 그대로 동작한다
     audio.addEventListener("error", () => { tracks[name].failed = true; });
-    tracks[name] = { audio, rafId: null, failed: false };
+    tracks[name] = { audio, gain: null, rafId: null, failed: false };
   });
 }
 
@@ -218,8 +273,8 @@ function fadeTo(name, target, onDone, durationMs) {
   if (!t || !t.audio) return;
   if (t.rafId) { cancelAnimationFrame(t.rafId); t.rafId = null; }
 
-  const from = t.audio.volume;
-  if (Math.abs(from - target) < 0.001) { t.audio.volume = target; if (onDone) onDone(); return; }
+  const from = trackVolume(t);
+  if (Math.abs(from - target) < 0.001) { setTrackVolume(t, target); if (onDone) onDone(); return; }
 
   const duration = durationMs || SOUND_FADE_MS;
   let startTs = null;
@@ -227,7 +282,7 @@ function fadeTo(name, target, onDone, durationMs) {
     if (startTs === null) startTs = ts;
     const p = Math.min(1, (ts - startTs) / duration);
     const eased = easeVolume(p);
-    t.audio.volume = Math.max(0, Math.min(1, from + (target - from) * eased));
+    setTrackVolume(t, from + (target - from) * eased);
     if (p >= 1) { t.rafId = null; if (onDone) onDone(); return; }
     t.rafId = requestAnimationFrame(step);
   };
@@ -238,6 +293,7 @@ function fadeTo(name, target, onDone, durationMs) {
 // 그래야 다시 켰을 때 처음부터가 아니라 이어서 들린다.
 function applyAudio() {
   if (!audioUnlocked) return;
+  resumeAudioCtx();
 
   Object.keys(SOUND).forEach((name) => {
     const t = tracks[name];
@@ -252,7 +308,7 @@ function applyAudio() {
     }
 
     // 줄이는 쪽은 짧게, 키우는 쪽은 길게.
-    const fadeMs = target < t.audio.volume ? SOUND_FADE_OUT_MS : SOUND_FADE_MS;
+    const fadeMs = target < trackVolume(t) ? SOUND_FADE_OUT_MS : SOUND_FADE_MS;
 
     fadeTo(name, target, () => {
       // 이 트랙이 필요 없어졌을 때만 멈춘다. 음소거는 멈추지 않는다.
@@ -311,7 +367,7 @@ function resetAudio() {
     if (!t.audio) return;
     t.audio.pause();
     try { t.audio.currentTime = 0; } catch (e) { /* 로드 전이면 무시 */ }
-    t.audio.volume = 0;
+    setTrackVolume(t, 0);
   });
 }
 
@@ -321,10 +377,14 @@ function unlockAudio() {
   if (audioUnlocked) return;
   audioUnlocked = true;
 
+  // 이 입력 안에서 만들어야 iOS 가 AudioContext 를 살려둔다
+  routeThroughGain();
+  resumeAudioCtx();
+
   Object.keys(tracks).forEach((name) => {
     const t = tracks[name];
     if (!t.audio) return;
-    t.audio.volume = 0;
+    setTrackVolume(t, 0);
     const p = t.audio.play();
     if (p && p.then) {
       p.then(() => { if (soundLevel[name] === 0) t.audio.pause(); }).catch(() => {});
@@ -332,6 +392,11 @@ function unlockAudio() {
   });
   applyAudio();
 }
+
+// 홈 화면 앱은 화면을 벗어났다 돌아오면 컨텍스트가 잠들어 있다
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && audioUnlocked) resumeAudioCtx();
+});
 
 // ================= DOM =================
 
@@ -590,10 +655,11 @@ function startSplash() {
 
 // ================= 화면을 눌러 시작하기 =================
 
+// 시안(1976:23)에는 화면 아래에 "100 %" 가 있지만 넣지 않는다.
+// 로딩 숫자가 수면을 따라 올라가도록 바뀌어서, 여기서 다시 아래에 뜨면
+// 전환하는 순간 숫자가 위에서 아래로 튄다.
 function renderTapStart() {
   el("tapStartText").textContent = findText("tapStart").title;
-  // 로딩이 끝난 직후라 이 값은 언제나 100 이다. 숫자를 따로 적어두지 않는다.
-  el("tapStartPercent").textContent = splashPercent + " %";
 }
 
 // 이 한 번의 입력이 브라우저 자동재생 잠금을 푸는 시점이다.
