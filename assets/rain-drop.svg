@@ -1,0 +1,9 @@
+<svg width="2" height="24" viewBox="0 0 2 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M1 1V23" stroke="url(#rain)" stroke-width="2" stroke-linecap="round"/>
+<defs>
+<linearGradient id="rain" x1="1" y1="0" x2="1" y2="24" gradientUnits="userSpaceOnUse">
+<stop stop-color="#3F93AE" stop-opacity="0.39"/>
+<stop offset="1" stop-color="#D3E2E8"/>
+</linearGradient>
+</defs>
+</svg>

@@ -1,0 +1,5 @@
+# 배포에 올리지 않는 것들
+CLAUDE.md
+
+# 압축 전 원본 소리 (22MB). 앱은 sounds/ 의 압축본만 쓴다.
+sounds/original/

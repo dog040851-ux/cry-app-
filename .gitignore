@@ -1,0 +1,11 @@
+# 로컬 도구 설정
+.claude/
+
+# 압축 전 원본 소리 (22MB). 앱은 sounds/ 의 96kbps 압축본만 쓴다.
+# 저장소에도 배포에도 올리지 않는다. 원본은 내 PC 에만 남는다.
+sounds/original/
+
+# 윈도우 / 맥이 만드는 찌꺼기
+Thumbs.db
+desktop.ini
+.DS_Store

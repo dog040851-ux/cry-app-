@@ -1,0 +1,1011 @@
+/* ============ 온글잎 긍정 (Figma: Ownglyph_GeungJeong) ============ */
+@font-face {
+  font-family: 'Ownglyph_positive';
+  src: url('https://cdn.jsdelivr.net/gh/fontbee/font@main/Ownglyph/Ownglyph_positive.woff2') format('woff2');
+  font-weight: normal;
+  font-display: swap;
+}
+
+/* 이 Figma 파일에는 바인딩된 변수가 없다(get_variable_defs 결과 {}).
+   아래 값은 전부 레이어에서 직접 읽은 실측 HEX 다. */
+:root {
+  --font-hand: 'Ownglyph_positive', sans-serif;
+  --font-ui: 'Pretendard', sans-serif;
+
+  --fs-hand-title: 48px;
+  --fs-hand-sub: 24px;
+  --fs-body: 15px;
+  --fs-value: 20px;
+  --lh-hand: 1.559;
+
+  --color-splash-bg: #FFFDFA;
+  --color-splash-title: #000000;
+  --color-tap-text: #4A4848;
+  --color-text-body: #3E3E3E;
+  --color-text-value: #111111;
+  --color-water-fill: #D3E2E8;
+  --color-cry-button-border: #A9CEDB;
+  --color-heart-cool: #3F93AE;
+  --color-heart-warm: #AE3F3F;
+
+  /* 모션 : linear 를 쓰지 않는다. 조용하고 느린 앱이라 전부 곡선으로 스며들게. */
+  --ease-in-soft: cubic-bezier(0.16, 1, 0.3, 1);    /* 나타남 */
+  --ease-out-soft: cubic-bezier(0.7, 0, 0.84, 0);   /* 사라짐 */
+
+  /* 화면 전환은 여기서만 정한다. 모든 화면이 이 값을 참조한다.
+     나가기가 끝난 뒤에 들어오기가 시작하므로 총 400ms 다. */
+  --ease-screen: ease-in-out;
+  --dur-screen-out: 200ms;
+  --dur-screen-in: 200ms;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-splash-bg);
+}
+
+/* 홈 화면에서 열었을 때 기기 화면을 꽉 채우도록 가운데 정렬해 둔다.
+   레이아웃은 375x812 고정 그대로이고, 화면 대응은 .app 의 scale 로만 한다. */
+body {
+  font-family: var(--font-ui);
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+button {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  /* 시안에 없는 효과는 두지 않는다. 눌러도 시각적으로 변하지 않게
+     브라우저가 자동으로 넣는 탭 하이라이트·포커스 링까지 끈다. */
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  transition: none;
+}
+
+button:active,
+button:focus,
+button:focus-visible,
+button:hover {
+  outline: none;
+  box-shadow: none;
+  transform: none;
+  filter: none;
+  opacity: 1;
+}
+
+/* ============ 375x812 고정 프레임 ============
+   내부는 전부 시안 좌표 그대로 두고, 기기 크기 대응은 이 scale 하나로만 한다.
+   --app-scale 은 script.js 가 화면 크기에서 계산해 넣는다. */
+.app {
+  width: 375px;
+  height: 812px;
+  position: relative;
+  flex: none;
+  transform: scale(var(--app-scale, 1));
+  transform-origin: center center;
+  overflow: hidden;
+  /* 전환 중 빈 구간에 보일 배경. script.js 가 목적지 화면 배경으로 맞춰 둔다. */
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ===== 화면 전환 =====
+   순서만 있고 겹침은 없다.
+   나가는 화면이 opacity 0 까지 다 사라진 뒤에야 들어오는 화면이 뜨기 시작한다.
+   그 사이에는 .app 배경만 보인다 (script.js 가 목적지 화면 배경을 미리 깔아둔다).
+   이동·확대·블러 같은 부가 효과는 쓰지 않는다. */
+.screen {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 375px;
+  height: 812px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: none; /* 숨은 상태로 되돌아갈 땐 애니메이션 없이 */
+}
+
+/* 나가는 중 : 1 → 0 으로 사라진다 */
+.screen.is-leaving {
+  opacity: 0;
+  visibility: visible;
+  transition: opacity var(--dur-screen-out) var(--ease-screen);
+}
+
+/* 들어오는 중 : 0 → 1 로 나타난다 (나가기가 끝난 뒤에 시작된다) */
+.screen.is-active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity var(--dur-screen-in) var(--ease-screen);
+}
+
+/* 같은 자리에서 상태만 바뀌는 전환(HOME ⇄ CRYING)은 슬라이드하지 않는다.
+   버튼을 누르고 뗄 때마다 화면이 올라오면 버튼에 효과가 붙은 것처럼 보인다. */
+.screen.is-instant { transition: none; }
+
+/* ================= 상단 아이콘 (시안 Frame 11) =================
+   x287 y61 73x29. 속도 29x29 + 15px 간격 + 소리 29x29.
+   색은 아이콘 SVG 안에 #494949 로 들어 있다. 7개 화면 모두 같은 값이다. */
+.hud {
+  position: absolute;
+  left: 287px;
+  top: 61px;
+  width: 73px;
+  height: 29px;
+  z-index: 3; /* 화면(최대 2)보다 위 */
+}
+
+/* 스플래시(로딩)에서는 아이콘이 하나도 보이지 않는다 */
+.hud[data-hidden="true"] { display: none; }
+
+.hud__speed {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 29px;
+  height: 29px;
+}
+
+.hud__speed img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 29px;
+  height: 29px;
+  display: block;
+}
+
+/* 기본 1.5 / 누르면 1.2 (둘 다 시안 아이콘) */
+.hud__speed[data-slow="false"] .hud__speed-12 { display: none; }
+.hud__speed[data-slow="true"] .hud__speed-15 { display: none; }
+
+.hud__sound {
+  position: absolute;
+  left: 44px;
+  top: 0;
+  width: 29px;
+  height: 29px;
+  overflow: hidden;
+}
+
+/* 켜짐 아이콘은 29x29 안에서 (5,7) 에 19.994x16 으로 들어간다.
+   내보낸 SVG 는 선 번짐 때문에 오른쪽으로 0.85px 더 넓다. */
+.hud__sound-on {
+  position: absolute;
+  left: 5px;
+  top: 7px;
+  width: 20.845px;
+  height: 16px;
+  display: block;
+}
+
+.hud__sound-off {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 29px;
+  height: 29px;
+  display: block;
+}
+
+.hud__sound[data-muted="false"] .hud__sound-off { display: none; }
+.hud__sound[data-muted="true"] .hud__sound-on { display: none; }
+
+/* ================= 스플래시 ================= */
+#screen-splash,
+#screen-splash-loading { background: var(--color-splash-bg); }
+
+/* 물은 바닥에 고정. height 만 0→100% 로 자란다.
+   translateY 로 통째로 올리지 않는다. */
+.splash__water {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 375px;
+  height: 0;
+}
+
+/* 수면 아래 몸통. 파도 골(기준선 아래 4.5px)보다 낮게 시작해야
+   골에서 배경이 비치지 않는다. */
+.splash__water-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6px;
+  bottom: 0;
+  background: var(--color-water-fill);
+}
+
+/* ===== 파도 (하트와 스플래시가 똑같이 쓰는 공통 물결) =====
+   타일 1주기(120x40)를 가로로 반복시키고 background-position 을 정확히
+   한 주기만큼 밀어 이어붙인다. 시작과 끝의 높이·기울기가 같아 이음매가 없다.
+   타일은 윗변(수면)에만 stroke 가 있어 옆면·바닥에 세로선이 생기지 않는다.
+
+   파형·진폭·주기·easing 은 전부 여기 한 곳에서만 정한다.
+   두 곳의 차이는 색 타일(background-image)과 컨테이너 폭뿐이다. */
+.wave {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background-repeat: repeat-x;
+  background-size: 120px 40px;
+  pointer-events: none;
+}
+
+/* 흐름은 이어져야 해서 등속으로 돈다. 곡선을 주면 한 바퀴마다 속도가 튄다.
+   위아래 출렁임만 곡선(ease-in-out)으로 왕복한다. */
+.screen.is-active .wave {
+  animation:
+    waveFlow 9s linear infinite,
+    waveBob 6.4s ease-in-out infinite alternate;
+}
+
+@keyframes waveFlow {
+  from { background-position-x: 0; }
+  to   { background-position-x: -120px; }
+}
+
+@keyframes waveBob {
+  from { transform: translateY(-1.6px); }
+  to   { transform: translateY(1.6px); }
+}
+
+/* 물결 기준선이 타일 위에서 10px 지점이라 그만큼 올려야
+   수면이 물 컨테이너 맨 위에 정확히 붙는다. */
+.splash__wave {
+  top: -10px;
+  background-image: url('assets/wave-splash-a.svg');
+}
+
+.splash__title-block {
+  position: absolute;
+  left: 124px;
+  top: 356px;
+  width: 128px;
+  height: 100px;
+  text-align: center;
+  white-space: nowrap;
+  font-family: var(--font-hand);
+  font-weight: normal;
+  color: var(--color-splash-title);
+}
+
+.splash__title { margin: 0; font-size: var(--fs-hand-title); line-height: var(--lh-hand); }
+.splash__subtitle { margin: 0; font-size: var(--fs-hand-sub); line-height: var(--lh-hand); }
+
+.splash__percent {
+  position: absolute;
+  left: 0;
+  top: 764px;
+  width: 375px;
+  height: 18px;
+  margin: 0;
+  text-align: center;
+  white-space: nowrap;
+  font-size: var(--fs-body);
+  line-height: normal;
+  color: var(--color-text-body);
+}
+
+/* ========== 화면을 눌러 시작하기 (1976:23) ==========
+   물이 화면을 가득 채운 상태다. 시안 Vector 59 는 x-6 y-52 389x874 라
+   파도 마루가 화면 위로 빠져 있어 안에서는 평평한 물면만 보인다.
+   그래서 파도 레이어 없이 배경색만 물색으로 둔다.
+   전환의 빈 구간에도 물색이 깔려 있어 화면이 끊기지 않는다. */
+#screen-tap-start { background: var(--color-water-fill); }
+
+/* 1976:43 : x106 y388 164x37 */
+.tap__text {
+  position: absolute;
+  left: 106px;
+  top: 388px;
+  width: 164px;
+  height: 37px;
+  margin: 0;
+  text-align: center;
+  white-space: nowrap;
+  font-family: var(--font-hand);
+  font-weight: normal;
+  font-size: var(--fs-hand-sub);
+  line-height: var(--lh-hand);
+  color: var(--color-tap-text);
+  opacity: 0; /* 등장 애니메이션이 시작되기 전까지는 없는 상태 */
+}
+
+/* 깜박이는 게 아니라 빛이 천천히 드나든다.
+   먼저 1.2초 동안 스며들듯 나타난 뒤 그 자리에서 명멸이 이어진다.
+   한 주기 3.2초 중 밝아지는 데 40%, 어두워지는 데 60% 를 써서
+   사그라들 때가 더 느리다. 밝을수록 아주 조금 커진다(1 → 1.015). */
+#screen-tap-start.is-active .tap__text {
+  animation:
+    tapAppear 1200ms ease-out both,
+    tapBreath 3200ms ease-in-out 1200ms infinite;
+}
+
+@keyframes tapAppear {
+  from { opacity: 0; transform: scale(1); }
+  to   { opacity: 1; transform: scale(1.015); }
+}
+
+@keyframes tapBreath {
+  0%   { opacity: 1;    transform: scale(1.015); }
+  60%  { opacity: 0.35; transform: scale(1); }
+  100% { opacity: 1;    transform: scale(1.015); }
+}
+
+/* ================= 공통 골격 ================= */
+/* Vector 25 (하트) x=121 y=113 w=134 h=131 */
+.cry__heart {
+  position: absolute;
+  left: 121px;
+  top: 113px;
+  width: 134px;
+  height: 131px;
+}
+
+/* ===== 하트 온기 (촛불) =====
+   조용히 켜둔 초 하나. 벽난로보다 작고 조용하게.
+   가운데가 조금 더 밝고 따뜻하며 바깥으로 갈수록 부드럽게 사라진다.
+   하트 도형보다 뒤(DOM 첫 자식)에 깔리고 클릭도 받지 않는다. */
+.heart__glow {
+  position: absolute;
+  left: -75px;
+  top: -75px;
+  width: 284px;
+  height: 281px;
+  pointer-events: none;
+  /* 온기 % 가 오를수록 조금씩 진해진다. script.js 가 넣는다. */
+  opacity: var(--glow-strength, 0.3);
+}
+
+/* 촛불이 공기에 흔들리듯 아주 얕게 떠다닌다.
+   간격이 고르지 않아 규칙적으로 느껴지지 않는다. 최대 1.1px. */
+#screen-breathing.is-active .heart__glow {
+  animation: candleSway 8.3s ease-in-out infinite;
+}
+
+@keyframes candleSway {
+  0%   { transform: translate(0, 0); }
+  17%  { transform: translate(-0.8px, 0.5px); }
+  34%  { transform: translate(0.6px, -0.4px); }
+  46%  { transform: translate(-0.3px, 0.9px); }
+  63%  { transform: translate(1.1px, 0.2px); }
+  78%  { transform: translate(-0.6px, -0.7px); }
+  91%  { transform: translate(0.4px, 0.4px); }
+  100% { transform: translate(0, 0); }
+}
+
+.heart__glow i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  will-change: transform, opacity;
+}
+
+/* 심지 쪽 : 가장 밝고 따뜻한 속빛. 중간 stop 을 둬서 가장자리가 뭉개지지 않게. */
+.heart__glow i:nth-child(1) {
+  background: radial-gradient(circle,
+    rgba(198, 76, 60, 0.32) 0%,
+    rgba(184, 66, 58, 0.15) 36%,
+    rgba(174, 63, 63, 0) 64%);
+}
+
+/* 주황 기운 — 붉은빛과 겹치는 정도가 계속 달라져 색 온도가 미묘하게 흔들린다 */
+.heart__glow i:nth-child(2) {
+  background: radial-gradient(circle,
+    rgba(222, 142, 86, 0.22) 0%,
+    rgba(214, 124, 80, 0.10) 40%,
+    rgba(214, 132, 84, 0) 62%);
+}
+
+/* 가장 바깥의 옅은 번짐. 여기가 불규칙한 흔들림을 맡는다. */
+.heart__glow i:nth-child(3) {
+  background: radial-gradient(circle,
+    rgba(190, 86, 66, 0.14) 0%,
+    rgba(190, 86, 66, 0) 72%);
+}
+
+/* 호흡 화면에서만 일렁인다.
+   호흡 1사이클(10초)의 배수가 아닌 3.7 / 5.3 / 9.7 초를 써서
+   억지로 동기화되지 않게 한다. */
+#screen-breathing.is-active .heart__glow i:nth-child(1) {
+  animation: candleA 3.7s ease-in-out infinite alternate;
+}
+
+#screen-breathing.is-active .heart__glow i:nth-child(2) {
+  animation: candleB 5.3s ease-in-out infinite alternate;
+}
+
+#screen-breathing.is-active .heart__glow i:nth-child(3) {
+  animation: candleFlicker 9.7s ease-in-out infinite;
+}
+
+/* 숨 쉬듯 오르내리는 두 겹. 변화 폭은 아주 작게. */
+@keyframes candleA {
+  from { transform: scale(1);     opacity: 0.86; }
+  to   { transform: scale(1.028); opacity: 1;    }
+}
+
+@keyframes candleB {
+  from { transform: scale(1.015); opacity: 1;    }
+  to   { transform: scale(0.99);  opacity: 0.84; }
+}
+
+/* 왕복이 아니라 한 방향으로 도는 불규칙한 흔들림.
+   구간 길이를 고르지 않게 잡아 "가끔 살짝" 흔들리는 느낌을 만든다. */
+@keyframes candleFlicker {
+  0%   { transform: scale(1);     opacity: 0.9;  }
+  21%  { transform: scale(1.022); opacity: 0.98; }
+  33%  { transform: scale(1.006); opacity: 0.84; }
+  52%  { transform: scale(1.034); opacity: 1;    }
+  68%  { transform: scale(1.012); opacity: 0.88; }
+  85%  { transform: scale(1.026); opacity: 0.95; }
+  100% { transform: scale(1);     opacity: 0.9;  }
+}
+
+/* 채워진 물은 하트 실루엣으로 잘라낸다.
+   heart-100.svg 의 칠해진 영역이 그대로 실루엣 역할을 한다. */
+.heart__water {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 134px;
+  height: 131px;
+  -webkit-mask-image: url('assets/heart-100.svg');
+          mask-image: url('assets/heart-100.svg');
+  -webkit-mask-size: 137px 134px;
+          mask-size: 137px 134px;
+  -webkit-mask-position: -1.5px -1.5px;
+          mask-position: -1.5px -1.5px;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+}
+
+.cry__heart[data-empty="true"] .heart__water { display: none; }
+
+
+/* 물 몸통은 수면(파도 골)보다 조금 아래에서 시작한다 */
+.heart__water-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: calc(100% - var(--fill, 0%) + 6px);
+  background: var(--water-color);
+}
+
+/* 수면은 물 높이를 따라 같이 오르내린다.
+   타일 기준선이 위에서 10px 이므로 그만큼 더 올린다.
+   background-image 는 하트 색(따뜻/차가움)에 따라 script.js 가 넣는다.
+   움직임은 위의 공통 .wave 규칙을 그대로 쓴다. */
+.heart__water .wave {
+  top: calc(100% - var(--fill, 0%) - 10px);
+}
+
+/* 수위는 script.js 가 매 프레임 연속으로 갱신하므로 여기에 transition 을 걸지 않는다.
+   (걸면 매 프레임 전환이 재시작되어 오히려 뒤처진다) */
+
+.heart__outline {
+  position: absolute;
+  left: -1.5px;
+  top: -1.5px;
+  width: 137px;
+  height: 134px;
+  display: block;
+}
+
+.cry__gauge {
+  position: absolute;
+  left: 0;
+  top: 264px;
+  width: 375px;
+  height: 24px;
+  margin: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.cry__gauge-label { font-size: var(--fs-body); color: var(--color-text-body); }
+
+.cry__gauge-value {
+  margin-left: 10px;
+  font-size: var(--fs-value);
+  font-weight: 600;
+  color: var(--color-text-value);
+}
+
+/* Group 4 (얼굴) x=136 y=319 */
+.cry__face {
+  position: absolute;
+  left: 136px;
+  top: 319px;
+  width: 112.302px;
+  height: 135.482px;
+}
+
+/* 3px 선이 사방 1.5px 씩 번진다 */
+.cry__face img,
+.done__face img {
+  position: absolute;
+  left: -1.5px;
+  top: -1.5px;
+  width: calc(100% + 3px);
+  height: calc(100% + 3px);
+  display: block;
+}
+
+/* Frame 4 (하단 패널) */
+.cry__panel {
+  position: absolute;
+  left: 0;
+  top: 483px;
+  width: 375px;
+  height: 329px;
+  overflow: hidden;
+}
+
+/* Frame 3 (버튼) */
+.cry__button {
+  position: absolute;
+  left: 91px;
+  top: 34px;
+  width: 193px;
+  height: 193px;
+  border-radius: 999px;
+  border: 2px solid var(--color-cry-button-border);
+  font-size: var(--fs-value);
+  font-weight: 600;
+  color: var(--color-text-body);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+.cry__helper {
+  position: absolute;
+  left: 0;
+  top: 764px;
+  width: 375px;
+  height: 18px;
+  margin: 0;
+  text-align: center;
+  white-space: nowrap;
+  font-size: var(--fs-body);
+  line-height: normal;
+  color: var(--color-text-body);
+}
+
+/* ========== 3~6. 우는 화면 4종 : 배경 그라디언트가 모두 동일 ========== */
+#screen-home,
+#screen-crying,
+#screen-released,
+#screen-cry-done {
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 375 812' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(0.95 13.9 -15.438 1.0551 195 168.5)'><stop stop-color='rgba(153,200,218,0.66)' offset='0'/><stop stop-color='rgba(211,226,232,1)' offset='1'/></radialGradient></defs></svg>");
+  background-size: 100% 100%;
+}
+
+#screen-home .cry__panel,
+#screen-crying .cry__panel,
+#screen-released .cry__panel,
+#screen-cry-done .cry__panel {
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 375 329' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(-1.4 16.95 -17.141 -1.4157 188 135)'><stop stop-color='rgba(153,200,218,0.24)' offset='0'/><stop stop-color='rgba(211,226,232,1)' offset='0.73623'/></radialGradient></defs></svg>");
+  background-size: 100% 100%;
+}
+
+#screen-home .cry__button,
+#screen-released .cry__button { background: #EDF5F7; }
+
+#screen-cry-done .cry__button { background: rgba(237, 245, 247, 0.7); }
+
+#screen-home .cry__gauge,
+#screen-crying .cry__gauge,
+#screen-released .cry__gauge,
+#screen-cry-done .cry__gauge { left: 0.5px; }
+
+/* ================= 4. 우는 중 ================= */
+#screen-crying .cry__button {
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 193 193' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(5.9089e-16 9.65 -9.65 5.9089e-16 96.5 96.5)'><stop stop-color='rgba(209,236,246,0.65)' offset='0'/><stop stop-color='rgba(237,245,247,1)' offset='1'/></radialGradient></defs></svg>");
+  background-size: 100% 100%;
+  color: rgba(62, 62, 62, 0.7);
+}
+
+/* 비는 화면 전체(0~812)를 덮는다. 잘리지 않게 overflow 를 열어 둔다. */
+.cry__rain {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 375px;
+  height: 812px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* 쌓임 순서.
+   하단 패널(y 483~812)은 불투명 그라디언트라, 비가 DOM 앞에 있으면
+   화면 아래 절반이 통째로 가려져 비가 중간에서 끊겨 보인다.
+   그래서 비를 패널 배경 위로 올리되, 문구·얼굴·버튼보다는 뒤에 둔다.
+   패널에는 z-index 를 주지 않는다 — 주면 스태킹 컨텍스트가 생겨
+   그 안에 있는 버튼이 비(형제 요소) 위로 올라올 수 없게 된다. */
+#screen-crying .cry__rain { z-index: 2; }
+#screen-crying .cry__button,
+#screen-crying .cry__gauge,
+#screen-crying .cry__helper,
+#screen-crying .cry__heart,
+#screen-crying .cry__face,
+#screen-crying .cry__tear { z-index: 3; }
+
+/* 빗방울 낱개. 크기·속도·지연·투명도는 script.js 가 개체마다 다르게 준다. */
+.rain__drop {
+  position: absolute;
+  top: 0;
+  display: block;
+  opacity: 0;
+  /* will-change 는 활성 화면에서만. 항상 걸어두면 빗방울 64개가
+     내내 합성 레이어로 남아 다른 화면 전환까지 무겁게 만든다. */
+}
+
+/* 누르고 있는 동안에만 = CRYING 화면이 떠 있는 동안에만 내린다.
+   낙하와 페이드를 따로 돌려서 곡선을 각각 준다.
+   떨어지는 건 물리적으로 등속에 가깝게, 나타나고 사라지는 것만 부드럽게. */
+#screen-crying.is-active .rain__drop {
+  animation-name: rainFall, rainFade;
+  animation-timing-function: cubic-bezier(0.4, 0.2, 0.6, 0.8), ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+/* 화면 위 밖에서 시작해 맨 아래(812)를 지나 880 까지 내려간다 */
+@keyframes rainFall {
+  from { transform: translateY(-60px); }
+  to   { transform: translateY(880px); }
+}
+
+/* 양 끝이 opacity 0 이라 루프가 이어져도 끊긴 자국이 없다 */
+@keyframes rainFade {
+  0%   { opacity: 0; }
+  14%  { opacity: var(--drop-opacity, 0.5); }
+  86%  { opacity: var(--drop-opacity, 0.5); }
+  100% { opacity: 0; }
+}
+
+/* Vector 56 : 눈물 4x8, 선 1px 이라 사방 0.5px 번짐 */
+.cry__tear { position: absolute; width: 4px; height: 8px; }
+
+.cry__tear img {
+  position: absolute;
+  left: -0.5px;
+  top: -0.5px;
+  width: 5px;
+  height: 9px;
+  display: block;
+}
+
+/* 볼을 타고 흐르듯 얼굴 중심 쪽으로 아주 살짝 휜다 (얼굴 중심 x=192.15) */
+.cry__tear--right { left: 207px; top: 390px; --tear-drift: -3px; }
+.cry__tear--left  { left: 171px; top: 392px; --tear-drift: 3px; }
+
+/* 좌우 눈물은 완전히 같은 애니메이션을 쓴다. 다른 것은 시작 시점뿐이다.
+   66% 지점의 translateY 가 오른쪽 입꼬리 높이(화면 y=407.9, 눈물 시작 390)라
+   왼쪽 지연을 duration 의 66% 로 주면
+   "오른쪽 눈물이 입꼬리에 닿는 순간 왼쪽이 시작"이 정확히 성립한다.
+
+   animation-fill-mode: backwards 가 없으면 왼쪽 눈물이 지연되는 4.2초 동안
+   애니메이션 전 상태(= 눈 밑에 그대로 보이는 상태)로 멈춰 있다.
+   버튼을 그보다 짧게 누르면 왼쪽은 영영 안 움직이는 것처럼 보인다.
+   backwards 를 주면 지연 구간에 0% 키프레임(투명)이 적용되어 그 문제가 사라진다.
+
+   낙하 거리는 중력처럼 시간의 제곱(y = 46τ²)으로 찍어 뒀다.
+   그래서 단계 사이는 등속에 가까운 곡선으로 이어야 가속이 그대로 보인다. */
+#screen-crying.is-active .cry__tear {
+  animation: tearFall 6.4s cubic-bezier(0.4, 0.2, 0.6, 0.8) infinite backwards;
+}
+
+#screen-crying.is-active .cry__tear--left { animation-delay: 4.22s; }
+
+@keyframes tearFall {
+  /* 1단계 : 눈 밑에 맺힘 — 작게 나타나 0.64초에 걸쳐 제자리에서 커진다 */
+  0%   { transform: translate(0, 0) scale(0.3); opacity: 0; }
+  4%   { opacity: 1; }
+  10%  { transform: translate(0, 0) scale(1); }
+  /* 2단계 : 맺힌 눈물이 볼을 타고 흐른다 */
+  25%  { transform: translate(calc(var(--tear-drift) * 0.17), 1.28px) scale(0.97); }
+  44%  { transform: translate(calc(var(--tear-drift) * 0.38), 6.56px) scale(0.91); }
+  66%  { transform: translate(calc(var(--tear-drift) * 0.62), 17.9px) scale(0.84); } /* 입꼬리 높이 */
+  84%  { transform: translate(calc(var(--tear-drift) * 0.82), 31.1px) scale(0.77); }
+  90%  { opacity: 1; }
+  100% { transform: translate(var(--tear-drift), 46px) scale(0.7); opacity: 0; }
+}
+
+/* ================= 7·8. 호흡 화면 ================= */
+#screen-breathing {
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 375 812' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(-3.4632e-7 17.05 -17.608 -4.9485e-7 188 162)'><stop stop-color='rgba(216,166,166,1)' offset='0'/><stop stop-color='rgba(244,230,208,1)' offset='0.73315'/></radialGradient></defs></svg>");
+  background-size: 100% 100%;
+}
+
+#screen-breathing .cry__panel { background: #F4E6D0; }
+
+.breath__circle {
+  position: absolute;
+  left: 91px;
+  top: 34px;
+  width: 193px;
+  height: 193px;
+  border-radius: 999px;
+  border: 2px solid #EAAF65;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-value);
+  font-weight: 600;
+  color: var(--color-text-body);
+}
+
+.breath__circle--small { left: 105px; top: 56px; width: 165px; height: 165px; }
+
+#screen-breathing .breath__circle {
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 165 165' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(1.699e-8 8.2073 -8.2073 1.699e-8 82.927 82.927)'><stop stop-color='rgba(237,209,168,1)' offset='0'/><stop stop-color='rgba(244,230,208,1)' offset='1'/></radialGradient></defs></svg>");
+  background-size: 100% 100%;
+  color: rgba(62, 62, 62, 0.7);
+  transform: translateY(0px) scale(1);
+  transform-origin: center center;
+  transition-property: transform;
+  transition-timing-function: ease-in-out;
+  /* transition-duration 은 script.js 가 BREATH_STEPS 값으로 지정 */
+}
+
+/* 원 안에 정지해 있던 덩어리 3개(1936:5783/5784/5785)는 없앴다.
+   같은 개체가 이제 버튼 하단에서 뱉어져 떨어진다. */
+
+/* 덩어리는 호흡 버튼 하단에서 나와 패널 안으로 떨어진다.
+   패널이 overflow:hidden 이라 아래로는 패널 밖을 넘지 않는다. */
+.breath__emit {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 375px;
+  height: 329px;
+  pointer-events: none;
+}
+
+.breath__emit img {
+  position: absolute;
+  display: block;
+  opacity: 0;
+  /* 떨어지면서 점점 빨라진다 (중력) */
+  animation-timing-function: ease-in;
+  animation-fill-mode: both;
+  will-change: transform, opacity;
+}
+
+@keyframes blobSpit {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(0.55);
+    opacity: 0;
+  }
+  18% { opacity: var(--blob-opacity, 0.9); }
+  100% {
+    transform: translate(var(--blob-dx, 0px), var(--blob-dy, 120px))
+               rotate(var(--blob-rot, 90deg)) scale(1);
+    opacity: 0;
+  }
+}
+
+/* 감은 눈 / 입 */
+.breath__mouth { position: absolute; left: 184px; top: 401px; width: 15px; height: 7px; }
+
+.breath__mouth img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 15px;
+  height: 7px;
+  display: block;
+}
+
+#screen-breathing .breath__mouth {
+  transform-origin: center center;
+  transition-property: transform;
+  transition-timing-function: ease-in-out;
+}
+
+.breath__eye { position: absolute; top: 381px; width: 17.5px; height: 3.138px; }
+
+.breath__eye img {
+  position: absolute;
+  left: -1.5px;
+  top: -1.5px;
+  width: calc(100% + 3px);
+  height: calc(100% + 3px);
+  display: block;
+}
+
+.breath__eye--right { left: 203.5px; transform: scaleY(-1); }
+.breath__eye--left  { left: 164px; transform: rotate(180deg); }
+
+/* ================= 9. 호흡 끝 ================= */
+#screen-breath-done {
+  background-image: linear-gradient(to bottom, #D0E8DC, #EAF3EE);
+}
+
+.done__blush { position: absolute; width: 17px; height: 11px; display: block; }
+.done__blush--c { left: 206px; top: 419px; }
+.done__blush--left { left: 64px; top: 68px; transform: scaleY(-1) rotate(180deg); }
+.done__blush--right { left: 116px; top: 68px; }
+
+.done__figure {
+  position: absolute;
+  left: 88px;
+  top: 331px;
+  width: 200px;
+  height: 190.482px;
+}
+
+.done__face {
+  position: absolute;
+  left: 43.849px;
+  top: 0;
+  width: 112.302px;
+  height: 135.482px;
+}
+
+.done__headline {
+  position: absolute;
+  left: 0;
+  top: 166.482px;
+  width: 200px;
+  height: 24px;
+  margin: 0;
+  text-align: center;
+  white-space: nowrap;
+  font-size: var(--fs-value);
+  font-weight: 700;
+  line-height: 24px;
+  color: var(--color-text-body);
+}
+
+.done__paragraph {
+  position: absolute;
+  left: 56px;
+  top: 565px;
+  width: 264px;
+  height: 48px;
+  margin: 0;
+  text-align: center;
+  white-space: pre-line;
+  font-size: var(--fs-body);
+  line-height: 24px;
+  color: var(--color-text-body);
+}
+
+/* 알약 버튼 : 두 화면이 채움색·radius·그림자를 공유한다 (시안 동일) */
+.pill-button {
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(32, 36, 47, 0.9);
+  box-shadow: 0 0 10.9px 0 rgba(52, 57, 66, 0.49);
+  color: #E9F3EE;
+  font-size: 18px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* 다 울었어요 화면의 "조금 더 울기" (1967:35198) */
+.cry-done__more {
+  left: 116px;
+  top: 739px;
+  width: 144px;
+  height: 53px;
+  font-weight: 700;
+  line-height: 24px;
+  transition: opacity 320ms var(--ease-screen);
+}
+
+/* 물이 다 차면 사라진다 */
+.cry-done__more[data-gone="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ===== 물음표 아이콘 (1971:6934 : x331 y61 29x29) ===== */
+.done__help {
+  position: absolute;
+  left: 331px;
+  top: 61px;
+  width: 29px;
+  height: 29px;
+  z-index: 4; /* 피드백 패널보다 위 — 다시 눌러 닫을 수 있게 */
+}
+
+.done__help img {
+  width: 29px;
+  height: 29px;
+  display: block;
+}
+
+/* ===== 안내 말풍선 (1972:10649 : x28 y100 332x113) =====
+   물음표(331,61) 바로 아래에 뜨고 오른쪽 끝이 아이콘과 나란히 맞는다.
+   시안에 꼬리(tail) 도형은 없다. */
+.bubble {
+  position: absolute;
+  left: 28px;
+  top: 100px;
+  width: 332px;
+  height: 113px;
+  border-radius: 16px;
+  background: #F9FCFB;
+  border: 0.2px solid rgba(145, 177, 161, 0.85);
+  box-shadow: inset -3px -5px 5.4px 0 rgba(141, 178, 160, 0.26);
+  overflow: hidden;
+  z-index: 5; /* 물음표(4)보다도 위 */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 240ms var(--ease-screen), visibility 0s linear 240ms;
+}
+
+.bubble[data-open="true"] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 240ms var(--ease-screen), visibility 0s;
+}
+
+.bubble__text {
+  position: absolute;
+  left: 15px;
+  top: 21px;
+  width: 302px;
+  margin: 0;
+  font-family: var(--font-hand);
+  font-weight: normal;
+  font-size: 15px;
+  line-height: 1.58;
+  color: #111111;
+}
+
+/* 시안에서 줄이 직접 끊겨 있어 그대로 옮긴다 */
+.bubble__text span {
+  display: block;
+  white-space: pre;
+}
+
+/* 마지막 줄 앞부분만 초록색 */
+.bubble__text em {
+  font-style: normal;
+  color: #157F35;
+}
+
+/* 마지막 줄만 조금 크게 */
+.bubble__text span:last-child {
+  font-size: 17px;
+}
+
+/* 호흡 끝 화면의 "Lucky Day" (1936:5823) */
+.done__button {
+  left: 79px;
+  top: 672px;
+  width: 218px;
+  height: 60px;
+  font-weight: 500;
+  line-height: 19px;
+  letter-spacing: -0.5px;
+}

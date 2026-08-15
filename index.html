@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport"
+  content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>울몽 - 같이 울어주는 앱</title>
+
+<meta name="description" content="혼자 울어도 괜찮아요. 같이 울어주는 앱." />
+
+<!-- ===== PWA ===== -->
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#FFFDFA" />
+<meta name="color-scheme" content="light only" />
+
+<!-- 파비콘 -->
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png" />
+
+<!-- 홈 화면에 추가했을 때 브라우저 UI 없이 전체화면으로 열린다 -->
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<!-- default = 밝은 배경에 검은 글씨. 앱 배경(#FFFDFA)이 밝아서 이 값이 맞다.
+     black-translucent 로 두면 상태바 아래로 화면이 파고들어 상단 아이콘과 겹친다. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="울몽" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+<link rel="stylesheet" as="style" crossorigin
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app" class="app">
+
+  <!-- 하트 내부와 빗방울은 script.js 가 만들어 넣는다 -->
+
+  <!-- 상단 아이콘 (시안 Frame 11 : x287 y61 73x29, 간격 15px).
+       화면 밖(.app 직속)에 두어 화면이 바뀌어도 그대로 유지된다. -->
+  <div class="hud" id="hud" data-hidden="true">
+    <button type="button" class="hud__speed" id="speedToggle" data-slow="false"
+            aria-label="속도 1.5배" data-node="material-symbols:speed-1-2-rounded">
+      <img class="hud__speed-15" src="assets/icon-speed-15.svg" alt="" aria-hidden="true" />
+      <img class="hud__speed-12" src="assets/icon-speed-12.svg" alt="" aria-hidden="true" />
+    </button>
+    <button type="button" class="hud__sound" id="soundToggle" data-muted="false"
+            aria-label="소리 끄기" aria-pressed="false"
+            data-node="material-symbols:no-sound-rounded">
+      <img class="hud__sound-on" src="assets/icon-sound-on.svg" alt="" aria-hidden="true" />
+      <img class="hud__sound-off" src="assets/icon-sound-off.svg" alt="" aria-hidden="true" />
+    </button>
+  </div>
+
+
+  <!-- ============ 1. 스플래시 · 물 없음 (1936:5909) ============ -->
+  <section id="screen-splash" class="screen is-active">
+    <div class="splash__title-block">
+      <p class="splash__title" id="splashTitle"></p>
+      <p class="splash__subtitle" id="splashSubtitle"></p>
+    </div>
+    <p class="splash__percent" id="splashPercent"></p>
+  </section>
+
+  <!-- ============ 2. 스플래시 · 로딩중 (1936:28600 / 물 1954:28808) ============ -->
+  <section id="screen-splash-loading" class="screen">
+    <!-- 물은 바닥에 고정하고 height 만 0→100% 로 키운다 -->
+    <!-- 수면은 주기가 다른 파도 두 겹. 가로로 흐르면서 위아래로도 출렁인다. -->
+    <div class="splash__water" id="splashWater">
+      <div class="wave splash__wave"></div>
+      <div class="splash__water-body"></div>
+    </div>
+    <div class="splash__title-block">
+      <p class="splash__title" id="splashLoadingTitle"></p>
+      <p class="splash__subtitle" id="splashLoadingSubtitle"></p>
+    </div>
+    <p class="splash__percent" id="splashLoadingPercent"></p>
+  </section>
+
+  <!-- ============ 3. 화면을 눌러 시작하기 (1976:23) ============
+       물이 다 찬 상태. 시안의 Vector 59 는 y=-52 에 있어 파도 마루가
+       화면 위로 빠져 있다. 그래서 화면 안에서는 평평한 물면만 보인다.
+       화면 아무 곳이나 누르면 HOME 으로 넘어간다. -->
+  <section id="screen-tap-start" class="screen">
+    <p class="tap__text" id="tapStartText" data-node="1976:43"></p>
+    <p class="splash__percent" id="tapStartPercent" data-node="1976:42"></p>
+  </section>
+
+  <!-- ============ 4. 앱 첫화면 HOME (1936:5592) ============ -->
+  <section id="screen-home" class="screen">
+    <div class="cry__heart" data-heart="cool" data-node="1936:5618"></div>
+    <p class="cry__gauge">
+      <span class="cry__gauge-label" id="homeGaugeLabel"></span>
+      <strong class="cry__gauge-value" id="homeGaugeValue"></strong>
+    </p>
+    <div class="cry__face" data-node="1936:5619">
+      <img src="assets/face-neutral.svg" alt="" aria-hidden="true" />
+    </div>
+    <div class="cry__panel">
+      <button type="button" class="cry__button" id="homeButton">
+        <span id="homeButtonLabel"></span>
+      </button>
+    </div>
+    <p class="cry__helper" id="homeHelper"></p>
+  </section>
+
+  <!-- ============ 4. 버튼 누르고 있을 때 CRYING (1936:5688) ============
+       비는 배경 레이어라 맨 뒤. 얼굴·버튼이 비보다 앞. 눈물은 얼굴 위. -->
+  <section id="screen-crying" class="screen">
+    <!-- 빗방울 낱개는 script.js 가 개체마다 다른 속도·지연·투명도로 만들어 넣는다 -->
+    <div class="cry__rain" data-node="1936:5715"></div>
+    <div class="cry__panel">
+      <button type="button" class="cry__button" id="cryingButton">
+        <span id="cryingButtonLabel"></span>
+      </button>
+    </div>
+    <p class="cry__helper" id="cryingHelper"></p>
+    <p class="cry__gauge">
+      <span class="cry__gauge-label" id="cryingGaugeLabel"></span>
+      <strong class="cry__gauge-value" id="cryingGaugeValue"></strong>
+    </p>
+    <div class="cry__heart" data-heart="cool" data-node="1936:5714"></div>
+    <div class="cry__face" data-node="1936:5737">
+      <img src="assets/face-neutral.svg" alt="" aria-hidden="true" />
+    </div>
+    <div class="cry__tear cry__tear--right" data-node="1936:5742">
+      <img src="assets/crying-tear.svg" alt="" aria-hidden="true" />
+    </div>
+    <div class="cry__tear cry__tear--left" data-node="1950:28633">
+      <img src="assets/crying-tear.svg" alt="" aria-hidden="true" />
+    </div>
+  </section>
+
+  <!-- ============ 5. 버튼 뗄 때 (1936:5624) ============ -->
+  <section id="screen-released" class="screen">
+    <div class="cry__heart" data-heart="cool" data-node="1936:5650"></div>
+    <p class="cry__gauge">
+      <span class="cry__gauge-label" id="releasedGaugeLabel"></span>
+      <strong class="cry__gauge-value" id="releasedGaugeValue"></strong>
+    </p>
+    <div class="cry__face" data-node="1936:5651">
+      <img src="assets/face-neutral.svg" alt="" aria-hidden="true" />
+    </div>
+    <div class="cry__panel">
+      <button type="button" class="cry__button" id="releasedButton">
+        <span id="releasedButtonLabel"></span>
+      </button>
+    </div>
+    <p class="cry__helper" id="releasedHelper"></p>
+  </section>
+
+  <!-- ============ 6. 다 울었을 때 CRY_DONE (1936:5656) ============ -->
+  <section id="screen-cry-done" class="screen">
+    <div class="cry__heart" data-heart="cool" data-node="1936:5682"></div>
+    <p class="cry__gauge">
+      <span class="cry__gauge-label" id="cryDoneGaugeLabel"></span>
+      <strong class="cry__gauge-value" id="cryDoneGaugeValue"></strong>
+    </p>
+    <div class="cry__face" data-node="1936:5683">
+      <img src="assets/face-cry-done.svg" alt="" aria-hidden="true" />
+    </div>
+    <div class="cry__panel">
+      <button type="button" class="cry__button" id="cryDoneButton">
+        <span id="cryDoneButtonLabel"></span>
+      </button>
+    </div>
+    <!-- 1967:35198 : x116 y739 144x53 -->
+    <button type="button" class="pill-button cry-done__more" id="cryMoreButton"
+            data-node="1967:35198"></button>
+  </section>
+
+  <!-- ============ 7·8. 호흡 준비 + 호흡 중 (1936:5747 / 1936:5779) ============
+       두 상태가 한 화면을 쓴다. 호흡 버튼을 눌러도 화면 전환이 일어나지 않고
+       그 자리에서 호흡 사이클만 시작된다. -->
+  <section id="screen-breathing" class="screen">
+    <div class="cry__panel">
+      <div class="breath__circle breath__circle--small" id="breathingCircle">
+        <span id="breathingCircleLabel"></span>
+      </div>
+      <!-- 내쉴 때 버튼 하단에서 덩어리가 후두둑 쏟아진다 -->
+      <div class="breath__emit" aria-hidden="true"></div>
+    </div>
+    <p class="cry__helper" id="breathingHelper"></p>
+    <p class="cry__gauge">
+      <span class="cry__gauge-label" id="breathingGaugeLabel"></span>
+      <strong class="cry__gauge-value" id="breathingGaugeValue"></strong>
+    </p>
+    <div class="cry__heart" data-heart="warm" data-node="1936:5813"></div>
+    <div class="cry__face" data-node="1936:5872">
+      <img src="assets/face-blank.svg" alt="" aria-hidden="true" />
+    </div>
+    <div class="breath__mouth" id="breathingMouth" data-node="Vector 57">
+      <img src="assets/breath-mouth.svg" alt="" aria-hidden="true" />
+    </div>
+    <div class="breath__eye breath__eye--right">
+      <img src="assets/breath-eye-right.svg" alt="" aria-hidden="true" />
+    </div>
+    <div class="breath__eye breath__eye--left">
+      <img src="assets/breath-eye-left.svg" alt="" aria-hidden="true" />
+    </div>
+  </section>
+
+  <!-- ============ 9. 호흡 끝 BREATH_DONE (1936:5821) ============ -->
+  <section id="screen-breath-done" class="screen">
+    <p class="done__paragraph" id="breathDoneParagraph"></p>
+    <!-- 1936:5823 : x79 y672 218x60 -->
+    <button type="button" class="pill-button done__button" id="breathDoneButton"
+            data-node="1936:5823"></button>
+    <p class="cry__gauge">
+      <span class="cry__gauge-label" id="breathDoneGaugeLabel"></span>
+      <strong class="cry__gauge-value" id="breathDoneGaugeValue"></strong>
+    </p>
+    <div class="cry__heart" data-heart="warm" data-node="1936:5846"></div>
+    <img class="done__blush done__blush--c" src="assets/done-blush-c.svg" alt="" aria-hidden="true" data-node="1936:5847" />
+    <div class="done__figure" data-node="1936:5848">
+      <div class="done__face" data-node="1936:5849">
+        <img src="assets/face-done.svg" alt="" aria-hidden="true" />
+      </div>
+      <p class="done__headline" id="breathDoneHeadline"></p>
+      <img class="done__blush done__blush--left" src="assets/done-blush-left.svg" alt="" aria-hidden="true" data-node="1936:5855" />
+      <img class="done__blush done__blush--right" src="assets/done-blush-right.svg" alt="" aria-hidden="true" data-node="1936:5856" />
+    </div>
+
+    <!-- 1971:6934 : x331 y61 29x29 -->
+    <button type="button" class="done__help" id="feedbackOpen"
+            aria-label="피드백 보내기" data-node="1971:6934">
+      <img src="assets/icon-question.svg" alt="" aria-hidden="true" />
+    </button>
+
+    <!-- ===== 안내 말풍선 (1972:10649 : x28 y100 332x113) =====
+         물음표 바로 아래에 뜬다. 입력칸 없이 글만 보여준다. -->
+    <div class="bubble" id="feedbackBubble" data-open="false" data-node="1972:10649">
+      <p class="bubble__text">
+        <span>서비스에 대한 피드백 및 문의사항은 yuipoi270@gmail.com </span>
+        <span>로 보내주세요.</span>
+        <span><em>오늘도 당신에게 다정한 하루가 되길 바랍니다. </em>☘️</span>
+      </p>
+    </div>
+  </section>
+
+</div>
+<script src="script.js"></script>
+</body>
+</html>
