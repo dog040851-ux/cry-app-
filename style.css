@@ -41,6 +41,20 @@
 
 * { box-sizing: border-box; }
 
+/* ===== 화면 바깥 여백 색 =====
+   375x812 비율과 기기 비율이 달라 위아래(또는 좌우)에 여백이 생긴다.
+   그 여백을 지금 화면의 가장자리 색으로 채워야 앱이 잘린 것처럼 보이지 않는다.
+   각 화면이 자기 가장자리 색을 --edge 로 알려주고 script.js 가 body 에 옮긴다. */
+#screen-splash,
+#screen-splash-loading            { --edge: #FFFDFA; }
+#screen-tap-start                 { --edge: #D3E2E8; }
+#screen-home,
+#screen-crying,
+#screen-released,
+#screen-cry-done                  { --edge: #D3E2E8; }  /* 배경 그라디언트 바깥 스톱 */
+#screen-breathing                 { --edge: #F4E6D0; }  /* 배경 그라디언트 바깥 스톱 */
+#screen-breath-done               { --edge: #EAF3EE; }  /* 세로 그라디언트 아래쪽 */
+
 html, body {
   margin: 0;
   padding: 0;
@@ -51,11 +65,20 @@ html, body {
    레이아웃은 375x812 고정 그대로이고, 화면 대응은 .app 의 scale 로만 한다. */
 body {
   font-family: var(--font-ui);
+  min-height: 100vh;   /* dvh 를 모르는 브라우저용 */
   min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+
+  /* 노치·홈바를 피한다. viewport-fit=cover 라 이걸 안 두면
+     화면 위아래 끝이 시스템 UI 에 가린다.
+     script.js 의 fitApp() 이 이 값을 읽어 쓸 수 있는 공간을 계산한다. */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 button {
@@ -146,7 +169,27 @@ button:hover {
   top: 61px;
   width: 73px;
   height: 29px;
-  z-index: 3; /* 화면(최대 2)보다 위 */
+  z-index: 10; /* 어떤 화면 요소보다도 위 */
+}
+
+/* 아이콘은 시안대로 29x29 지만, 손가락에는 29px 이 너무 작다.
+   보이는 그림은 그대로 두고 눌리는 범위만 44x44 로 넓힌다.
+   중심이 같고 두 버튼의 중심 간격이 44px 이라 서로 겹치지 않는다. */
+.hud__speed::after,
+.hud__sound::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+/* 더블탭 확대 판정을 기다리지 않고 바로 반응하게 한다 */
+.hud__speed,
+.hud__sound {
+  touch-action: manipulation;
 }
 
 /* 스플래시(로딩)에서는 아이콘이 하나도 보이지 않는다 */
@@ -173,13 +216,14 @@ button:hover {
 .hud__speed[data-slow="false"] .hud__speed-12 { display: none; }
 .hud__speed[data-slow="true"] .hud__speed-15 { display: none; }
 
+/* overflow:hidden 을 두지 않는다. 넓힌 터치 범위(::after)까지 잘려나간다.
+   켜짐 아이콘은 left 5 + width 20.845 = 25.845 로 29 안에 들어와 자를 것도 없다. */
 .hud__sound {
   position: absolute;
   left: 44px;
   top: 0;
   width: 29px;
   height: 29px;
-  overflow: hidden;
 }
 
 /* 켜짐 아이콘은 29x29 안에서 (5,7) 에 19.994x16 으로 들어간다.
@@ -288,6 +332,24 @@ button:hover {
 .splash__title { margin: 0; font-size: var(--fs-hand-title); line-height: var(--lh-hand); }
 .splash__subtitle { margin: 0; font-size: var(--fs-hand-sub); line-height: var(--lh-hand); }
 
+/* 로딩 숫자. 수면 바로 위에 붙어 물과 함께 올라간다.
+   top 은 물 높이에 따라 매 프레임 script.js 가 정한다.
+   물 위(연한 하늘색)에서도 물 아래에서도 읽히는 색이다. */
+.splash__level {
+  position: absolute;
+  left: 0;
+  width: 375px;
+  height: 18px;
+  margin: 0;
+  text-align: center;
+  white-space: nowrap;
+  font-size: var(--fs-body);
+  line-height: normal;
+  color: var(--color-text-body);
+  pointer-events: none;
+}
+
+/* 시작 화면(1976:23)의 "100 %" 는 시안대로 화면 맨 아래에 그대로 둔다 */
 .splash__percent {
   position: absolute;
   left: 0;

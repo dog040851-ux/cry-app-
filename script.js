@@ -158,18 +158,31 @@ let refillDoneTimer = null;
 //
 // pending: 아직 파일이 없는 트랙. 요청 자체를 하지 않아 404 도 콘솔 에러도 남지 않는다.
 // 파일을 sounds/ 에 넣은 뒤 pending 줄만 지우면 그대로 살아난다.
-const SOUND = {
-  bgm:    { src: "sounds/bgm.mp3",    volume: 0.3,  pending: true },
-  rain:   { src: "sounds/rain.mp3",   volume: 0.4 },
-  breath: { src: "sounds/breath.mp3", volume: 0.35 },
-};
-
 // 빗소리는 늘 깔려 있고, 누르고 있는 동안에만 조금 커진다.
 const RAIN_VOLUME_IDLE = 0.22;
 const RAIN_VOLUME_CRYING = 0.4;
 
-// 볼륨은 아주 길게, 곡선으로 바꾼다. "켜졌다"는 느낌 없이 스며들게.
+// ===== 호흡 소리 크기 =====
+// 두 파일의 원래 크기가 크게 다르다 (ffmpeg ebur128 실측).
+//   빗소리 -37.8 LUFS / 호흡 -17.7 LUFS  → 호흡 파일이 20.1 LU 더 크다.
+// 그래서 volume 숫자를 비슷하게 두면 호흡만 훨씬 크게 들린다.
+// 빗소리와 같은 크기로 맞춘 뒤 2 LU 더 낮춘다.
+const BREATH_LOUDER_BY_LU = 20.1;
+const BREATH_QUIETER_BY_LU = 2;
+const BREATH_VOLUME =
+  RAIN_VOLUME_IDLE * Math.pow(10, -(BREATH_LOUDER_BY_LU + BREATH_QUIETER_BY_LU) / 20);
+
+const SOUND = {
+  bgm:    { src: "sounds/bgm.mp3",    volume: 0.3,  pending: true },
+  rain:   { src: "sounds/rain.mp3",   volume: 0.4 },
+  breath: { src: "sounds/breath.mp3", volume: BREATH_VOLUME },
+};
+
+// 켜질 때는 아주 길게, 곡선으로. "켜졌다"는 느낌 없이 스며들게.
 const SOUND_FADE_MS = 1800;
+// 끌 때는 짧게. 호흡 화면에 들어가면 빗소리가 곧바로 물러나야 하고,
+// 음소거 버튼도 누르는 즉시 조용해져야 한다.
+const SOUND_FADE_OUT_MS = 500;
 
 // 처음엔 아주 천천히, 끝에서도 완만하게 (smoothstep)
 const easeVolume = (p) => p * p * (3 - 2 * p);
@@ -200,7 +213,7 @@ function buildTracks() {
 }
 
 // 볼륨은 언제나 fade 로 바뀐다. 갑자기 켜지거나 꺼지지 않는다.
-function fadeTo(name, target, onDone) {
+function fadeTo(name, target, onDone, durationMs) {
   const t = tracks[name];
   if (!t || !t.audio) return;
   if (t.rafId) { cancelAnimationFrame(t.rafId); t.rafId = null; }
@@ -208,10 +221,11 @@ function fadeTo(name, target, onDone) {
   const from = t.audio.volume;
   if (Math.abs(from - target) < 0.001) { t.audio.volume = target; if (onDone) onDone(); return; }
 
+  const duration = durationMs || SOUND_FADE_MS;
   let startTs = null;
   const step = (ts) => {
     if (startTs === null) startTs = ts;
-    const p = Math.min(1, (ts - startTs) / SOUND_FADE_MS);
+    const p = Math.min(1, (ts - startTs) / duration);
     const eased = easeVolume(p);
     t.audio.volume = Math.max(0, Math.min(1, from + (target - from) * eased));
     if (p >= 1) { t.rafId = null; if (onDone) onDone(); return; }
@@ -237,10 +251,13 @@ function applyAudio() {
       if (p && p.catch) p.catch(() => {});
     }
 
+    // 줄이는 쪽은 짧게, 키우는 쪽은 길게.
+    const fadeMs = target < t.audio.volume ? SOUND_FADE_OUT_MS : SOUND_FADE_MS;
+
     fadeTo(name, target, () => {
       // 이 트랙이 필요 없어졌을 때만 멈춘다. 음소거는 멈추지 않는다.
       if (soundLevel[name] === 0 && !t.audio.paused) t.audio.pause();
-    });
+    }, fadeMs);
   });
 }
 
@@ -422,6 +439,10 @@ function showScreen(id) {
   appEl.style.backgroundImage = nextStyle.backgroundImage;
   appEl.style.backgroundColor = nextStyle.backgroundColor;
 
+  // 기기 비율이 375x812 와 달라 생기는 바깥 여백을 이 화면의 가장자리 색으로 채운다
+  const edge = nextStyle.getPropertyValue("--edge").trim();
+  if (edge) document.body.style.backgroundColor = edge;
+
   const instant =
     current && INSTANT_GROUP.includes(current.id) && INSTANT_GROUP.includes(next.id);
 
@@ -498,11 +519,23 @@ function renderSplashText() {
 
 // 물 높이는 소수점까지 그대로 쓴다. 정수로 반올림하면 8px 씩 계단으로 튄다.
 // 화면에 적히는 숫자만 정수로 내린다.
+// 숫자는 수면 바로 위에 붙어 물과 같이 올라간다.
+// 물이 꼭대기에 닿으면 더 올라갈 자리가 없으므로 위아래 24px 안에서 멈춘다.
+const LEVEL_GAP_PX = 28;   // 수면에서 숫자까지
+const LEVEL_MIN_TOP = 24;
+const LEVEL_MAX_TOP = 812 - 40;
+
 function renderSplashProgress() {
   const shown = splashPercent + " %";
-  el("splashPercent").textContent = shown;
-  el("splashLoadingPercent").textContent = shown;
   el("splashWater").style.height = splashFill.toFixed(3) + "%";
+
+  const surfaceY = 812 * (1 - splashFill / 100);
+  const levelTop = Math.min(LEVEL_MAX_TOP, Math.max(LEVEL_MIN_TOP, surfaceY - LEVEL_GAP_PX));
+  ["splashLevel", "splashLoadingLevel"].forEach((id) => {
+    const node = el(id);
+    node.textContent = shown;
+    node.style.top = levelTop.toFixed(1) + "px";
+  });
 
   const id = activeScreenId("SPLASH");
   if (id !== splashScreenId) {
@@ -536,13 +569,19 @@ function startSplash() {
     const ratio = Math.min(1, (ts - splashStartTs) / SPLASH_DURATION_MS);
     splashFill = easeWater(ratio) * 100;
     splashPercent = Math.round(splashFill);
-    renderSplashProgress();
 
-    if (ratio >= 1) {
+    // 곡선이라 끝에서 아주 느려진다. 숫자가 100 이 된 뒤에도 ratio 가 1 이 되려면
+    // 0.6 초쯤 더 걸려서 100% 인 채로 멈춰 있는 것처럼 보였다.
+    // 숫자가 100 에 닿는 순간이 곧 끝이다.
+    if (splashPercent >= 100) {
+      splashFill = 100;
+      renderSplashProgress();
       splashRafId = null;
       renderScreen("TAP_TO_START");
       return;
     }
+
+    renderSplashProgress();
     splashRafId = requestAnimationFrame(tick);
   };
 
@@ -681,9 +720,13 @@ function handlePressStart(event) {
   renderScreen("CRYING");
 }
 
+// 주의 : 이 핸들러는 window 에 걸려 있어 화면 어디를 눌러도 실행된다.
+// 터치 기기에서 pointerup 에 preventDefault() 를 하면 뒤따르는 click 이 취소된다.
+// 그래서 상태를 먼저 확인하고, 우는 중일 때만 기본 동작을 막는다.
+// (먼저 막아버리면 상단 소리·속도 아이콘의 click 이 영영 오지 않는다.)
 function handlePressEnd(event) {
-  event.preventDefault();
   if (currentState !== "CRYING") return;
+  event.preventDefault();
   renderScreen("HOME");
 }
 
@@ -961,8 +1004,24 @@ function renderSpeedToggle() {
   speedToggle.setAttribute("aria-label", isSlowSpeed ? "속도 1.2배" : "속도 1.5배");
 }
 
+// 상단 아이콘은 click 하나에만 의존하지 않는다.
+// 터치 기기에서는 스크롤 판정·탭 지연·다른 핸들러의 preventDefault 때문에
+// click 이 오지 않는 경우가 있다. pointerup 으로도 같이 받고,
+// 둘 다 오면 한 번만 처리한다(같은 탭에서 온 두 번째 이벤트는 버린다).
+function bindTap(element, handler) {
+  let lastAt = -1e9;
+  const run = (event) => {
+    const now = typeof event.timeStamp === "number" ? event.timeStamp : performance.now();
+    if (now - lastAt < 500) return;
+    lastAt = now;
+    handler(event);
+  };
+  element.addEventListener("pointerup", run);
+  element.addEventListener("click", run);
+}
+
 // 1.5 ⇄ 1.2 토글. 값만 바꾸면 물 감소·온기 상승이 다음 프레임부터 바로 반영된다.
-speedToggle.addEventListener("click", () => {
+bindTap(speedToggle, () => {
   isSlowSpeed = !isSlowSpeed;
   renderSpeedToggle();
 });
@@ -973,14 +1032,17 @@ function renderSoundToggle() {
   soundToggle.setAttribute("aria-label", isMuted ? "소리 켜기" : "소리 끄기");
 }
 
-soundToggle.addEventListener("click", () => {
+bindTap(soundToggle, () => {
   isMuted = !isMuted;
   renderSoundToggle();
   applyAudio(); // 음소거는 정지가 아니라 볼륨 0. 다시 켜면 이어서 들린다.
 });
 
-// 토글을 눌러도 아래 화면이 반응하지 않게 한다
-soundToggle.addEventListener("pointerdown", (event) => event.stopPropagation());
+// 토글을 눌러도 아래 화면이 반응하지 않게 한다.
+// preventDefault 는 쓰지 않는다. 터치에서 뒤따르는 click 까지 취소될 수 있다.
+[speedToggle, soundToggle].forEach((btn) => {
+  btn.addEventListener("pointerdown", (event) => event.stopPropagation());
+});
 
 // ================= 서비스워커 =================
 
@@ -998,8 +1060,19 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
 
 // 375x812 를 기기 화면에 맞춰 통째로 확대·축소한다.
 // 내부 좌표는 시안 그대로 두고 여기서만 배율을 바꾼다.
+// 쓸 수 있는 공간 = 실제로 보이는 영역에서 노치·홈바(safe-area)를 뺀 것.
+// visualViewport 는 아이폰에서 주소창이 접히거나 펼쳐지는 것까지 반영한다.
 function fitApp() {
-  const scale = Math.min(window.innerWidth / 375, window.innerHeight / 812);
+  const vv = window.visualViewport;
+  const cs = getComputedStyle(document.body);
+  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+  const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+
+  const availW = (vv ? vv.width : window.innerWidth) - padX;
+  const availH = (vv ? vv.height : window.innerHeight) - padY;
+
+  // 가로·세로 중 작은 비율을 쓴다. 그래야 375x812 비율이 그대로 유지된다.
+  const scale = Math.min(availW / 375, availH / 812);
   document.documentElement.style.setProperty("--app-scale", scale.toFixed(4));
 }
 
