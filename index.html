@@ -31,6 +31,16 @@
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+<!-- 375x812 비율과 기기 비율이 달라 생기는 바깥 여백을 덮는 층.
+     앱과 같은 좌표계·같은 배율이라 안팎의 배경이 이어진다.
+     내용은 없고 배경만 그린다. -->
+<div class="stage">
+  <div class="backdrop" id="backdrop" aria-hidden="true">
+    <div class="backdrop__edge"></div>
+    <div class="backdrop__bg" id="backdropBg"></div>
+    <div class="backdrop__water"></div>
+  </div>
+
 <div id="app" class="app">
 
   <!-- 하트 내부와 빗방울은 script.js 가 만들어 넣는다 -->
@@ -254,6 +264,7 @@
     </div>
   </section>
 
+</div>
 </div>
 <script src="script.js"></script>
 </body>

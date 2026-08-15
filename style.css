@@ -42,8 +42,9 @@
      상단 아이콘·하트·얼굴·버튼·하단 멘트를 한 덩어리로 올린다.
      아이콘이 시안에서 y61 이고 화면 위 30px 에 와야 하므로 31px 위로.
      세로 위치를 다시 바꿀 일이 생기면 이 값 하나만 고치면 된다.
-     요소들의 left 와 서로 간의 세로 간격은 여기서 건드리지 않는다. */
-  --content-shift: -31px;
+     요소들의 left 와 서로 간의 세로 간격은 여기서 건드리지 않는다.
+     -41px 이면 아이콘이 y61 → y20 이 된다. */
+  --content-shift: -41px;
 }
 
 * { box-sizing: border-box; }
@@ -79,12 +80,12 @@ body {
   justify-content: center;
   overflow: hidden;
 
-  /* safe-area 만큼 여백을 두지 않는다.
-     여백을 두면 앱이 화면보다 작아져 위아래에 띠가 생기는데,
-     스플래시(물 아래 크림색 띠)와 BREATH_DONE(위쪽 색 어긋남)에서
-     그 띠가 그대로 드러나 "반응형이 안 걸린 화면"처럼 보였다.
-     아이폰의 화면 비율이 375:812 와 거의 같아서, 여백을 빼지 않으면
-     앱이 화면을 가득 채운다. */
+  /* 노치·홈바를 피한다. 이 여백만큼 앱이 작아지지만,
+     남는 자리는 .backdrop 이 같은 배경으로 덮어 띠가 보이지 않는다. */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 button {
@@ -114,13 +115,75 @@ button:hover {
 /* ============ 375x812 고정 프레임 ============
    내부는 전부 시안 좌표 그대로 두고, 기기 크기 대응은 이 scale 하나로만 한다.
    --app-scale 은 script.js 가 화면 크기에서 계산해 넣는다. */
+/* 앱과 배경층을 겹쳐 놓는 자리. 이 상자가 body 안에서 가운데 정렬된다.
+   두 층 모두 같은 상자·같은 원점이라 배율을 걸어도 중심이 어긋나지 않는다. */
+/* 중요 : transform: scale() 은 보이는 크기만 바꾸고 레이아웃 크기는
+   375x812 그대로다. 그래서 화면이 812px 보다 짧으면(사파리 툴바가 있는
+   아이폰이 그렇다) 이 상자가 넘쳐 앱 아래쪽이 화면 밖으로 밀려났다.
+   여기에 줄어든 크기를 실제로 넣어야 가운데 정렬이 맞는다. */
+.stage {
+  position: relative;
+  width: calc(375px * var(--app-scale, 1));
+  height: calc(812px * var(--app-scale, 1));
+  flex: none;
+}
+
+/* ===== 바깥 배경층 =====
+   앱과 똑같은 좌표계(375x812)에 똑같은 배율을 걸고, 안쪽 요소만
+   사방으로 크게 늘려 화면 끝까지 칠한다. 배율이 같으니 물 높이나
+   그라디언트의 위치가 앱 안쪽과 정확히 이어진다.
+   (배율을 다르게 주면 경계에서 색이 어긋난다.) */
+.backdrop {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 375px;
+  height: 812px;
+  z-index: 0;
+  pointer-events: none;
+  transform: scale(var(--app-scale, 1));
+  transform-origin: top left;
+}
+
+/* 위아래·모서리까지 채우는 바탕색 (지금 화면의 가장자리 색) */
+.backdrop__edge {
+  position: absolute;
+  left: -1200px; right: -1200px; top: -1200px; bottom: -1200px;
+  background: var(--edge, #FFFDFA);
+}
+
+/* 화면의 배경 그림을 좌우로만 늘린다.
+   세로 그라디언트는 x 와 무관해서 옆으로 늘려도 그대로 이어지고,
+   방사형 그라디언트는 가장자리가 거의 단색이라 티가 나지 않는다. */
+.backdrop__bg {
+  position: absolute;
+  left: -1200px; right: -1200px; top: 0; bottom: 0;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+/* 스플래시의 물. 앱 안쪽 수면과 같은 높이에서 좌우·아래로 이어진다.
+   --splash-fill 은 앱 안쪽 물과 같은 값을 쓴다. */
+.backdrop__water {
+  position: absolute;
+  left: -1200px; right: -1200px; bottom: -1200px;
+  height: calc(var(--splash-fill, 0%) + 1200px);
+  background: var(--color-water-fill);
+  display: none;
+}
+
+.backdrop[data-splash="true"] .backdrop__water { display: block; }
+
 .app {
   width: 375px;
   height: 812px;
-  position: relative;
-  flex: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  /* 배경층과 원점을 맞춘다. .stage 가 이미 줄어든 크기라 좌상단 기준이 맞다. */
   transform: scale(var(--app-scale, 1));
-  transform-origin: center center;
+  transform-origin: top left;
   overflow: hidden;
   /* 전환 중 빈 구간에 보일 배경. script.js 가 목적지 화면 배경으로 맞춰 둔다. */
   background-size: 100% 100%;
@@ -275,12 +338,13 @@ button:hover {
 
 /* 물은 바닥에 고정. height 만 0→100% 로 자란다.
    translateY 로 통째로 올리지 않는다. */
+/* 높이는 --splash-fill 하나로 정한다. 바깥 배경층의 물도 같은 값을 본다. */
 .splash__water {
   position: absolute;
   left: 0;
   bottom: 0;
   width: 375px;
-  height: 0;
+  height: var(--splash-fill, 0%);
 }
 
 /* 수면 아래 몸통. 파도 골(기준선 아래 4.5px)보다 낮게 시작해야
@@ -336,12 +400,16 @@ button:hover {
   background-image: url('assets/wave-splash-a.svg');
 }
 
+/* 화면 정중앙. 글자 상자의 실제 높이를 기준으로 가운데를 맞춘다.
+   (시안의 고정 높이 100px 은 두 줄의 실제 높이 112px 보다 작아서
+   그대로 쓰면 중앙보다 6px 아래로 내려간다.) */
 .splash__title-block {
   position: absolute;
   left: 124px;
-  top: 356px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 128px;
-  height: 100px;
+  height: auto;
   text-align: center;
   white-space: nowrap;
   font-family: var(--font-hand);
@@ -352,11 +420,14 @@ button:hover {
 .splash__title { margin: 0; font-size: var(--fs-hand-title); line-height: var(--lh-hand); }
 .splash__subtitle { margin: 0; font-size: var(--fs-hand-sub); line-height: var(--lh-hand); }
 
-/* 로딩 숫자는 시안대로 화면 아래에 고정. 물만 차오른다. */
+/* 로딩 숫자는 화면 아래에 고정. 물만 차오르고 값만 바뀐다.
+   시안은 y764(바닥에서 30px)지만 사파리 하단 바에 가려서
+   바닥에서 넉넉히 띄우고 홈바 높이까지 더한다. */
 .splash__percent {
   position: absolute;
   left: 0;
-  top: 764px;
+  top: auto;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   width: 375px;
   height: 18px;
   margin: 0;

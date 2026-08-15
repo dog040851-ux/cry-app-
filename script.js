@@ -402,6 +402,8 @@ document.addEventListener("visibilitychange", () => {
 
 const screenEls = document.querySelectorAll(".screen");
 const appEl = document.getElementById("app");
+const backdropEl = document.getElementById("backdrop");
+const backdropBgEl = document.getElementById("backdropBg");
 const el = (id) => document.getElementById(id);
 const rand = (min, max) => min + Math.random() * (max - min);
 
@@ -487,6 +489,24 @@ const INSTANT_GROUP = ["screen-home", "screen-crying", "screen-released"];
 
 let screenLeaveTimer = null;
 
+// 바깥 배경층을 지금 화면과 같은 배경으로 맞춘다.
+// 이게 없으면 좌우(또는 위아래) 여백에서 색이 끊겨 경계선이 보인다.
+// 스플래시에서는 물도 바깥까지 이어져야 해서 따로 표시해 둔다.
+const SPLASH_SCREENS = ["screen-splash", "screen-splash-loading", "screen-tap-start"];
+
+function syncBackdrop(screen) {
+  if (!screen || !backdropEl) return;
+  const style = getComputedStyle(screen);
+
+  const edge = style.getPropertyValue("--edge").trim();
+  if (edge) {
+    document.body.style.backgroundColor = edge;
+    backdropEl.style.setProperty("--edge", edge);
+  }
+  backdropBgEl.style.backgroundImage = style.backgroundImage;
+  backdropEl.dataset.splash = String(SPLASH_SCREENS.includes(screen.id));
+}
+
 // 나가기가 완전히 끝난 뒤에 들어오기를 시작한다.
 // 두 화면이 동시에 보이는 프레임이 한 번도 없다.
 function showScreen(id) {
@@ -504,9 +524,7 @@ function showScreen(id) {
   appEl.style.backgroundImage = nextStyle.backgroundImage;
   appEl.style.backgroundColor = nextStyle.backgroundColor;
 
-  // 기기 비율이 375x812 와 달라 생기는 바깥 여백을 이 화면의 가장자리 색으로 채운다
-  const edge = nextStyle.getPropertyValue("--edge").trim();
-  if (edge) document.body.style.backgroundColor = edge;
+  syncBackdrop(next);
 
   const instant =
     current && INSTANT_GROUP.includes(current.id) && INSTANT_GROUP.includes(next.id);
@@ -584,12 +602,16 @@ function renderSplashText() {
 
 // 물 높이는 소수점까지 그대로 쓴다. 정수로 반올림하면 8px 씩 계단으로 튄다.
 // 화면에 적히는 숫자만 정수로 내린다.
-// 숫자는 시안대로 화면 아래(y764)에 고정이다. 물만 차오르고 값만 바뀐다.
+// 숫자는 화면 아래에 고정이다. 물만 차오르고 값만 바뀐다.
+// 물 높이는 변수 하나로 정해서 앱 안쪽 물과 바깥 배경층의 물이 같이 움직인다.
 function renderSplashProgress() {
   const shown = splashPercent + " %";
   el("splashPercent").textContent = shown;
   el("splashLoadingPercent").textContent = shown;
-  el("splashWater").style.height = splashFill.toFixed(3) + "%";
+  document.documentElement.style.setProperty(
+    "--splash-fill",
+    splashFill.toFixed(3) + "%"
+  );
 
   const id = activeScreenId("SPLASH");
   if (id !== splashScreenId) {
@@ -1118,13 +1140,23 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
 // 쓸 수 있는 공간 = 실제로 보이는 영역에서 노치·홈바(safe-area)를 뺀 것.
 // visualViewport 는 아이폰에서 주소창이 접히거나 펼쳐지는 것까지 반영한다.
 function fitApp() {
-  // visualViewport 는 아이폰에서 주소창이 접히거나 펼쳐지는 것까지 반영한다.
+  // 아이폰 사파리는 상황에 따라 다른 높이를 알려준다. 셋 중 가장 작은 값을
+  // 쓰면 어떤 상태에서도 내용이 브라우저 UI 에 가리지 않는다.
+  // 그만큼 앱이 작아지지만 남는 자리는 .backdrop 이 덮어 티가 안 난다.
   const vv = window.visualViewport;
-  const availW = vv ? vv.width : window.innerWidth;
-  const availH = vv ? vv.height : window.innerHeight;
+  const heights = [window.innerHeight, document.documentElement.clientHeight];
+  if (vv) heights.push(vv.height);
+  const widths = [window.innerWidth, document.documentElement.clientWidth];
+  if (vv) widths.push(vv.width);
+
+  const cs = getComputedStyle(document.body);
+  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+  const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+
+  const availW = Math.min.apply(null, widths.filter((n) => n > 0)) - padX;
+  const availH = Math.min.apply(null, heights.filter((n) => n > 0)) - padY;
 
   // 가로·세로 중 작은 비율을 쓴다. 그래야 375x812 비율이 그대로 유지된다.
-  // safe-area 를 빼지 않는다. 빼면 앱이 화면보다 작아져 띠가 생긴다.
   const scale = Math.min(availW / 375, availH / 812);
   document.documentElement.style.setProperty("--app-scale", scale.toFixed(4));
 }
@@ -1132,7 +1164,15 @@ function fitApp() {
 window.addEventListener("resize", fitApp);
 // 아이폰에서 주소창이 접히거나 회전할 때도 다시 맞춘다
 window.addEventListener("orientationchange", fitApp);
-if (window.visualViewport) window.visualViewport.addEventListener("resize", fitApp);
+window.addEventListener("pageshow", fitApp);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", fitApp);
+  window.visualViewport.addEventListener("scroll", fitApp);
+}
+
+// 아이폰 사파리는 처음 몇 백 ms 동안 툴바 높이가 확정되지 않아
+// 로드 직후의 값이 실제와 다르다. 잠깐씩 다시 재어 맞춘다.
+[120, 400, 900, 1800].forEach((ms) => setTimeout(fitApp, ms));
 
 // ================= 시작 =================
 
@@ -1143,4 +1183,7 @@ renderSoundToggle();
 renderSpeedToggle();
 buildHearts();
 buildRain();
+// 첫 화면은 HTML 에서 이미 is-active 라 showScreen 이 일찍 빠져나간다.
+// 바깥 배경층은 여기서 한 번 맞춰 준다.
+syncBackdrop(document.getElementById("screen-splash"));
 renderScreen("SPLASH");
