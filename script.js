@@ -403,7 +403,8 @@ document.addEventListener("visibilitychange", () => {
 const screenEls = document.querySelectorAll(".screen");
 const appEl = document.getElementById("app");
 const backdropEl = document.getElementById("backdrop");
-const backdropBgEl = document.getElementById("backdropBg");
+const backdropWaterEl = document.getElementById("backdropWater");
+const stageEl = document.getElementById("stage");
 const el = (id) => document.getElementById(id);
 const rand = (min, max) => min + Math.random() * (max - min);
 
@@ -498,13 +499,32 @@ function syncBackdrop(screen) {
   if (!screen || !backdropEl) return;
   const style = getComputedStyle(screen);
 
-  const edge = style.getPropertyValue("--edge").trim();
-  if (edge) {
-    document.body.style.backgroundColor = edge;
-    backdropEl.style.setProperty("--edge", edge);
-  }
-  backdropBgEl.style.backgroundImage = style.backgroundImage;
+  const edge = style.getPropertyValue("--edge").trim() || "#FFFDFA";
+  const bg = style.getPropertyValue("--bg").trim();
+  const size = style.getPropertyValue("--bg-size").trim();
+  const position = style.getPropertyValue("--bg-position").trim();
+
+  document.body.style.backgroundColor = edge;
+  backdropEl.style.backgroundColor = edge;
+  backdropEl.style.backgroundImage = bg && bg !== "none" ? bg : "none";
+  backdropEl.style.backgroundSize = size || "100% 100%";
+  backdropEl.style.backgroundPosition = position || "center";
+
   backdropEl.dataset.splash = String(SPLASH_SCREENS.includes(screen.id));
+  updateSplashWater();
+}
+
+// 물의 수면 높이를 화면 좌표(px)로 정한다.
+// 물은 앱 밖(.backdrop) 에 있어 화면 전체 폭으로 그려진다.
+function updateSplashWater() {
+  if (!backdropWaterEl || !stageEl) return;
+  const scale =
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--app-scale")
+    ) || 1;
+  const rect = stageEl.getBoundingClientRect();
+  const surfaceY = rect.top + 812 * (1 - splashFill / 100) * scale;
+  backdropWaterEl.style.top = surfaceY.toFixed(1) + "px";
 }
 
 // 나가기가 완전히 끝난 뒤에 들어오기를 시작한다.
@@ -518,12 +538,7 @@ function showScreen(id) {
   if (screenLeaveTimer) { clearTimeout(screenLeaveTimer); screenLeaveTimer = null; }
   document.querySelectorAll(".screen.is-leaving").forEach((n) => n.classList.remove("is-leaving"));
 
-  // 비는 구간에 목적지 화면의 배경을 미리 깔아 둔다.
-  // 이게 없으면 그 사이 body 의 밝은 배경이 드러나 번쩍인다.
-  const nextStyle = getComputedStyle(next);
-  appEl.style.backgroundImage = nextStyle.backgroundImage;
-  appEl.style.backgroundColor = nextStyle.backgroundColor;
-
+  // 배경은 .backdrop 한 곳에서만 그린다. 화면들은 전부 투명하다.
   syncBackdrop(next);
 
   const instant =
@@ -608,10 +623,7 @@ function renderSplashProgress() {
   const shown = splashPercent + " %";
   el("splashPercent").textContent = shown;
   el("splashLoadingPercent").textContent = shown;
-  document.documentElement.style.setProperty(
-    "--splash-fill",
-    splashFill.toFixed(3) + "%"
-  );
+  updateSplashWater();
 
   const id = activeScreenId("SPLASH");
   if (id !== splashScreenId) {
@@ -1159,6 +1171,7 @@ function fitApp() {
   // 가로·세로 중 작은 비율을 쓴다. 그래야 375x812 비율이 그대로 유지된다.
   const scale = Math.min(availW / 375, availH / 812);
   document.documentElement.style.setProperty("--app-scale", scale.toFixed(4));
+  updateSplashWater();
 }
 
 window.addEventListener("resize", fitApp);

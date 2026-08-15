@@ -43,8 +43,9 @@
      아이콘이 시안에서 y61 이고 화면 위 30px 에 와야 하므로 31px 위로.
      세로 위치를 다시 바꿀 일이 생기면 이 값 하나만 고치면 된다.
      요소들의 left 와 서로 간의 세로 간격은 여기서 건드리지 않는다.
-     -41px 이면 아이콘이 y61 → y20 이 된다. */
-  --content-shift: -41px;
+     -11px 이면 아이콘이 y61 → y50 이 된다.
+     scale 이 걸린 컨테이너 안쪽 좌표라 기기가 달라져도 같은 비율로 보인다. */
+  --content-shift: -11px;
 }
 
 * { box-sizing: border-box; }
@@ -115,64 +116,70 @@ button:hover {
 /* ============ 375x812 고정 프레임 ============
    내부는 전부 시안 좌표 그대로 두고, 기기 크기 대응은 이 scale 하나로만 한다.
    --app-scale 은 script.js 가 화면 크기에서 계산해 넣는다. */
-/* 앱과 배경층을 겹쳐 놓는 자리. 이 상자가 body 안에서 가운데 정렬된다.
-   두 층 모두 같은 상자·같은 원점이라 배율을 걸어도 중심이 어긋나지 않는다. */
-/* 중요 : transform: scale() 은 보이는 크기만 바꾸고 레이아웃 크기는
-   375x812 그대로다. 그래서 화면이 812px 보다 짧으면(사파리 툴바가 있는
-   아이폰이 그렇다) 이 상자가 넘쳐 앱 아래쪽이 화면 밖으로 밀려났다.
-   여기에 줄어든 크기를 실제로 넣어야 가운데 정렬이 맞는다. */
-.stage {
-  position: relative;
-  width: calc(375px * var(--app-scale, 1));
-  height: calc(812px * var(--app-scale, 1));
-  flex: none;
-}
-
-/* ===== 바깥 배경층 =====
-   앱과 똑같은 좌표계(375x812)에 똑같은 배율을 걸고, 안쪽 요소만
-   사방으로 크게 늘려 화면 끝까지 칠한다. 배율이 같으니 물 높이나
-   그라디언트의 위치가 앱 안쪽과 정확히 이어진다.
-   (배율을 다르게 주면 경계에서 색이 어긋난다.) */
+/* ===== 배경층 =====
+   배경은 앱 컨테이너 밖, 화면 전체에 딱 한 겹만 그린다.
+   앱 안쪽 화면들은 전부 투명해서 배경이 두 번 그려지는 일이 없고,
+   그래서 컨테이너 경계라는 것이 아예 생길 수 없다.
+   지금 화면의 배경은 script.js 가 --bg / --edge 를 읽어 여기에 넣는다. */
 .backdrop {
-  position: absolute;
+  position: fixed;
   left: 0;
   top: 0;
-  width: 375px;
-  height: 812px;
+  right: 0;
+  bottom: 0;
   z-index: 0;
   pointer-events: none;
-  transform: scale(var(--app-scale, 1));
-  transform-origin: top left;
-}
-
-/* 위아래·모서리까지 채우는 바탕색 (지금 화면의 가장자리 색) */
-.backdrop__edge {
-  position: absolute;
-  left: -1200px; right: -1200px; top: -1200px; bottom: -1200px;
-  background: var(--edge, #FFFDFA);
-}
-
-/* 화면의 배경 그림을 좌우로만 늘린다.
-   세로 그라디언트는 x 와 무관해서 옆으로 늘려도 그대로 이어지고,
-   방사형 그라디언트는 가장자리가 거의 단색이라 티가 나지 않는다. */
-.backdrop__bg {
-  position: absolute;
-  left: -1200px; right: -1200px; top: 0; bottom: 0;
+  background-color: var(--edge, #FFFDFA);
+  background-image: none;
   background-size: 100% 100%;
+  background-position: center;
   background-repeat: no-repeat;
 }
 
-/* 스플래시의 물. 앱 안쪽 수면과 같은 높이에서 좌우·아래로 이어진다.
-   --splash-fill 은 앱 안쪽 물과 같은 값을 쓴다. */
+/* 스플래시의 물도 화면 전체 폭으로 그린다. top 은 script.js 가 정한다.
+   앱 밖에 있으니 맞춰야 할 경계 자체가 없다. */
 .backdrop__water {
   position: absolute;
-  left: -1200px; right: -1200px; bottom: -1200px;
-  height: calc(var(--splash-fill, 0%) + 1200px);
-  background: var(--color-water-fill);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: 100%;
   display: none;
 }
 
 .backdrop[data-splash="true"] .backdrop__water { display: block; }
+
+.backdrop__water-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6px;
+  bottom: 0;
+  background: var(--color-water-fill);
+}
+
+/* 수면 물결. 화면 밖 요소라 화면 전환과 무관하게 계속 흐른다. */
+.backdrop__water .wave {
+  animation:
+    waveFlow 9s linear infinite,
+    waveBob 6.4s ease-in-out infinite alternate;
+}
+
+/* ===== 앱 컨테이너 =====
+   375x812 하나뿐이고, 모든 화면이 이 안에 들어간다.
+   기기 대응은 여기 걸리는 scale 하나로만 한다.
+
+   중요 : transform: scale() 은 보이는 크기만 바꾸고 레이아웃 크기는
+   375x812 그대로다. 화면이 812px 보다 짧으면(툴바가 있는 아이폰 사파리가
+   그렇다) 이 상자가 넘쳐 앱 아래쪽이 화면 밖으로 밀려난다.
+   그래서 .stage 에 줄어든 크기를 실제로 넣어 가운데 정렬을 맞춘다. */
+.stage {
+  position: relative;
+  z-index: 1;
+  width: calc(375px * var(--app-scale, 1));
+  height: calc(812px * var(--app-scale, 1));
+  flex: none;
+}
 
 .app {
   width: 375px;
@@ -180,14 +187,11 @@ button:hover {
   position: absolute;
   left: 0;
   top: 0;
-  z-index: 1;
-  /* 배경층과 원점을 맞춘다. .stage 가 이미 줄어든 크기라 좌상단 기준이 맞다. */
   transform: scale(var(--app-scale, 1));
   transform-origin: top left;
   overflow: hidden;
-  /* 전환 중 빈 구간에 보일 배경. script.js 가 목적지 화면 배경으로 맞춰 둔다. */
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
+  /* 배경은 .backdrop 이 전담한다. 여기는 투명하게 둔다. */
+  background: transparent;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -238,6 +242,9 @@ button:hover {
   top: 0;
   width: 375px;
   height: 812px;
+  /* 비(.cry__rain, z-index 0)보다 반드시 앞. transform 때문에 이 요소가
+     쌓임 맥락을 만들므로 안쪽 요소들의 z-index 로는 비를 이길 수 없다. */
+  z-index: 1;
   transform: translateY(var(--content-shift));
 }
 
@@ -334,29 +341,7 @@ button:hover {
 
 /* ================= 스플래시 ================= */
 #screen-splash,
-#screen-splash-loading { background: var(--color-splash-bg); }
-
-/* 물은 바닥에 고정. height 만 0→100% 로 자란다.
-   translateY 로 통째로 올리지 않는다. */
-/* 높이는 --splash-fill 하나로 정한다. 바깥 배경층의 물도 같은 값을 본다. */
-.splash__water {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 375px;
-  height: var(--splash-fill, 0%);
-}
-
-/* 수면 아래 몸통. 파도 골(기준선 아래 4.5px)보다 낮게 시작해야
-   골에서 배경이 비치지 않는다. */
-.splash__water-body {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 6px;
-  bottom: 0;
-  background: var(--color-water-fill);
-}
+#screen-splash-loading { --edge: #FFFDFA; --bg: none; }
 
 /* ===== 파도 (하트와 스플래시가 똑같이 쓰는 공통 물결) =====
    타일 1주기(120x40)를 가로로 반복시키고 background-position 을 정확히
@@ -405,9 +390,9 @@ button:hover {
    그대로 쓰면 중앙보다 6px 아래로 내려간다.) */
 .splash__title-block {
   position: absolute;
-  left: 124px;
+  left: 50%;
   top: 50%;
-  transform: translateY(-50%);
+  transform: translate(-50%, -50%);
   width: 128px;
   height: auto;
   text-align: center;
@@ -738,8 +723,8 @@ button:hover {
 #screen-crying,
 #screen-released,
 #screen-cry-done {
-  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 375 812' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(0.95 13.9 -15.438 1.0551 195 168.5)'><stop stop-color='rgba(153,200,218,0.66)' offset='0'/><stop stop-color='rgba(211,226,232,1)' offset='1'/></radialGradient></defs></svg>");
-  background-size: 100% 100%;
+  --edge: #D3E2E8;
+  --bg: url("data:image/svg+xml;utf8,<svg viewBox='0 0 375 812' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(0.95 13.9 -15.438 1.0551 195 168.5)'><stop stop-color='rgba(153,200,218,0.66)' offset='0'/><stop stop-color='rgba(211,226,232,1)' offset='1'/></radialGradient></defs></svg>");
 }
 
 #screen-home .cry__panel,
@@ -784,7 +769,7 @@ button:hover {
    그래서 비를 패널 배경 위로 올리되, 문구·얼굴·버튼보다는 뒤에 둔다.
    패널에는 z-index 를 주지 않는다 — 주면 스태킹 컨텍스트가 생겨
    그 안에 있는 버튼이 비(형제 요소) 위로 올라올 수 없게 된다. */
-#screen-crying .cry__rain { z-index: 2; }
+#screen-crying .cry__rain { z-index: 0; }
 #screen-crying .cry__button,
 #screen-crying .cry__gauge,
 #screen-crying .cry__helper,
@@ -876,8 +861,8 @@ button:hover {
 
 /* ================= 7·8. 호흡 화면 ================= */
 #screen-breathing {
-  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 375 812' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(-3.4632e-7 17.05 -17.608 -4.9485e-7 188 162)'><stop stop-color='rgba(216,166,166,1)' offset='0'/><stop stop-color='rgba(244,230,208,1)' offset='0.73315'/></radialGradient></defs></svg>");
-  background-size: 100% 100%;
+  --edge: #F4E6D0;
+  --bg: url("data:image/svg+xml;utf8,<svg viewBox='0 0 375 812' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(-3.4632e-7 17.05 -17.608 -4.9485e-7 188 162)'><stop stop-color='rgba(216,166,166,1)' offset='0'/><stop stop-color='rgba(244,230,208,1)' offset='0.73315'/></radialGradient></defs></svg>");
 }
 
 #screen-breathing .cry__panel { background: #F4E6D0; }
@@ -981,8 +966,22 @@ button:hover {
 .breath__eye--left  { left: 164px; transform: rotate(180deg); }
 
 /* ================= 9. 호흡 끝 ================= */
+/* 시안 1936:5821 배경은 두 겹이다.
+   ① 세로 그라디언트 #D0E8DC → #EAF3EE (프레임 전체)
+   ② 그 위, 화면 위쪽 375x308 자리에 얹힌 방사형 그라디언트 (1974:10664)
+      rgba(216,166,166,1) → rgba(213,234,223,1)
+   ②가 빠져 있어서 배경이 단색처럼 보였다. 308/812 = 37.93%.
+
+   바깥 스톱만 불투명(#D5EADF) → 투명으로 바꿨다. 시안대로 불투명하게 두면
+   블록이 끝나는 38% 지점에서 그 색과 아래 그라디언트(#DAECE3)가 만나
+   가로선이 그어진다. 투명으로 두면 같은 온기가 그대로 남으면서 선이 사라진다. */
 #screen-breath-done {
-  background-image: linear-gradient(to bottom, #D0E8DC, #EAF3EE);
+  --edge: #EAF3EE;
+  --bg:
+    url("data:image/svg+xml;utf8,<svg viewBox='0 0 375 308' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(4.0301e-7 12.8 -13.05 3.8542e-7 188 164.5)'><stop stop-color='rgba(216,166,166,1)' offset='0'/><stop stop-color='rgba(213,234,223,0)' offset='1'/></radialGradient></defs></svg>"),
+    linear-gradient(to bottom, #D0E8DC, #EAF3EE);
+  --bg-size: 100% 37.93%, 100% 100%;
+  --bg-position: center top, center top;
 }
 
 .done__blush { position: absolute; width: 17px; height: 11px; display: block; }

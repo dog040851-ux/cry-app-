@@ -34,13 +34,14 @@
 <!-- 375x812 비율과 기기 비율이 달라 생기는 바깥 여백을 덮는 층.
      앱과 같은 좌표계·같은 배율이라 안팎의 배경이 이어진다.
      내용은 없고 배경만 그린다. -->
-<div class="stage">
-  <div class="backdrop" id="backdrop" aria-hidden="true">
-    <div class="backdrop__edge"></div>
-    <div class="backdrop__bg" id="backdropBg"></div>
-    <div class="backdrop__water"></div>
+<div class="backdrop" id="backdrop" aria-hidden="true">
+  <div class="backdrop__water" id="backdropWater">
+    <div class="wave splash__wave"></div>
+    <div class="backdrop__water-body"></div>
   </div>
+</div>
 
+<div class="stage" id="stage">
 <div id="app" class="app">
 
   <!-- 하트 내부와 빗방울은 script.js 가 만들어 넣는다 -->
@@ -72,13 +73,8 @@
   </section>
 
   <!-- ============ 2. 스플래시 · 로딩중 (1936:28600 / 물 1954:28808) ============ -->
+  <!-- 물은 화면 전체를 덮는 .backdrop 층이 그린다 (여기 없음) -->
   <section id="screen-splash-loading" class="screen">
-    <!-- 물은 바닥에 고정하고 height 만 0→100% 로 키운다 -->
-    <!-- 수면은 주기가 다른 파도 두 겹. 가로로 흐르면서 위아래로도 출렁인다. -->
-    <div class="splash__water" id="splashWater">
-      <div class="wave splash__wave"></div>
-      <div class="splash__water-body"></div>
-    </div>
     <div class="splash__title-block">
       <p class="splash__title" id="splashLoadingTitle"></p>
       <p class="splash__subtitle" id="splashLoadingSubtitle"></p>
