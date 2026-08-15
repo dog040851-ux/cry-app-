@@ -495,7 +495,10 @@ let screenLeaveTimer = null;
 // 바깥 배경층을 지금 화면과 같은 배경으로 맞춘다.
 // 이게 없으면 좌우(또는 위아래) 여백에서 색이 끊겨 경계선이 보인다.
 // 스플래시에서는 물도 바깥까지 이어져야 해서 따로 표시해 둔다.
-const SPLASH_SCREENS = ["screen-splash", "screen-splash-loading", "screen-tap-start"];
+// 시작 화면(1976:23)은 뺀다. 시안에서 파도 마루가 y-52 라 화면 밖에 있어
+// 물면이 평평하다. 물 층을 켜면 화면 맨 위에 물결선이 그어진다.
+// 이 화면의 --edge 가 이미 물색(#D3E2E8)이라 배경만으로 충분하다.
+const SPLASH_SCREENS = ["screen-splash", "screen-splash-loading"];
 
 function syncBackdrop(screen) {
   if (!screen || !backdropEl) return;
