@@ -536,7 +536,10 @@ function updateSplashWater() {
     ) || 1;
   const rect = stageEl.getBoundingClientRect();
   const surfaceY = rect.top + 812 * (1 - splashFill / 100) * scale;
-  backdropWaterEl.style.top = surfaceY.toFixed(1) + "px";
+  // top 은 .backdrop 기준이다. 배경층이 화면 밖으로 나가 있어도 어긋나지 않게
+  // 화면 좌표에서 배경층의 위치를 빼서 넣는다.
+  const base = backdropEl.getBoundingClientRect().top;
+  backdropWaterEl.style.top = (surfaceY - base).toFixed(1) + "px";
 }
 
 // 나가기가 완전히 끝난 뒤에 들어오기를 시작한다.

@@ -158,12 +158,16 @@ button:hover {
 }
 
 /* 스플래시의 물도 화면 전체 폭으로 그린다. top 은 script.js 가 정한다.
-   앱 밖에 있으니 맞춰야 할 경계 자체가 없다. */
+   앱 밖에 있으니 맞춰야 할 경계 자체가 없다.
+
+   좌우·아래로 화면 밖까지 넉넉히 넘긴다. 아이폰은 홈바 자리나
+   주소창이 접히는 구간에서 fixed 요소 바깥이 잠깐 드러날 수 있는데,
+   그때 바탕(흰색)이 비치지 않고 물색이 이어지게 하려는 것이다. */
 .backdrop__water {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: -200px;
+  right: -200px;
+  bottom: -200px;
   top: 100%;
   display: none;
 }
@@ -1147,19 +1151,18 @@ button:hover {
   transition: opacity 240ms var(--ease-screen), visibility 0s;
 }
 
-/* 말풍선 안은 전부 Pretendard 다.
-   (시안은 여기도 손글잎이지만, 손글씨는 스플래시 제목·부제목에만 쓴다는
-   프로젝트 규칙을 따른다. 손글씨보다 글자폭이 넓어 줄 수가 늘어난다.)
+/* 말풍선 안은 전부 온글잎 긍정이다 (시안 1972:10662 도 이 글꼴).
+   온글잎은 굵기가 1종뿐이라 font-weight 는 normal 고정.
 
    줄바꿈은 시안처럼 고정하지 않고 폭에 맞춰 흐르게 둔다. 고정해두면
-   글꼴이 바뀌는 순간 그대로 넘쳐서 잘린다.
+   글꼴이나 폭이 바뀌는 순간 그대로 넘쳐서 잘린다.
    keep-all : 한글 단어 중간에서 끊지 않는다.
    break-word : 이메일처럼 긴 덩어리는 자리가 정 없을 때만 넘긴다.
                 (break-all 과 달리 여유가 있으면 통째로 다음 줄로 내려간다) */
 .bubble__text {
   margin: 0;
-  font-family: var(--font-ui);
-  font-weight: 400;
+  font-family: var(--font-hand);
+  font-weight: normal;
   font-size: 15px;
   line-height: 1.58;
   color: #111111;

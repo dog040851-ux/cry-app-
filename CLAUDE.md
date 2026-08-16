@@ -32,18 +32,19 @@
 - index.html <head>에 Pretendard CDN (동적 서브셋. 통짜는 굵기당 766KB라 안 쓴다):
   <link rel="stylesheet" crossorigin
     href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" />
-- style.css 상단에 온글잎 긍정 (CDN 원본 3.15MB → 쓰는 글자만 뽑은 13.8KB 서브셋):
+- style.css 상단에 온글잎 긍정 (CDN 원본 3.15MB → 쓰는 글자만 뽑은 22.3KB 서브셋):
   @font-face {
     font-family: 'Ownglyph_positive';
     src: url('assets/Ownglyph_positive-subset.woff2') format('woff2');
     font-weight: normal; font-display: block;
   }
-- 손글씨 문구(스플래시 제목·부제목, 시작 화면 문구)를 바꾸면
+- 손글씨 문구(스플래시 제목·부제목, 시작 화면 문구, 피드백 말풍선)를 바꾸면
   서브셋에 없는 글자는 기본 고딕으로 나온다. 문구를 바꾸면 서브셋도 다시 만들 것.
 - :root 변수:
   --font-hand: 'Ownglyph_positive', sans-serif;
   --font-ui: 'Pretendard', sans-serif;
-- 기본값은 전체 --font-ui. 손글씨(--font-hand)는 스플래시 제목(48px)과 부제목(24px)만.
+- 기본값은 전체 --font-ui. 손글씨(--font-hand)는 스플래시 제목(48px)·부제목(24px),
+  시작 화면 문구, 피드백 말풍선에 사용.
 - 스플래시 하단 로딩 % 숫자도 Pretendard다.
 - 감성적인 문구라는 이유로 임의로 손글씨체를 적용하지 말 것.
 - 온글잎 긍정은 굵기 1종. font-weight는 normal 고정.
