@@ -2,7 +2,7 @@
 //
 // 배포할 때마다 CACHE_VERSION 을 올려야 사용자가 새 파일을 받는다.
 // 이 값이 바뀌면 예전 캐시는 activate 단계에서 통째로 지워진다.
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v4";
 const CORE_CACHE = "ulmong-core-" + CACHE_VERSION;
 const RUNTIME_CACHE = "ulmong-runtime-" + CACHE_VERSION;
 
@@ -52,14 +52,11 @@ const AUDIO_ASSETS = [
   "/sounds/breath.mp3",
 ];
 
-// 폰트도 마찬가지로 무겁다(온글잎 3.3MB + Pretendard 4종 3.1MB).
-// 한 번 받아 두면 다음 실행부터는 글자가 바로 뜬다.
+// 온글잎은 3.3MB 통짜 파일 하나뿐이라 미리 받아 둔다.
+// Pretendard 는 동적 서브셋이라 어떤 조각이 필요한지 미리 알 수 없다.
+// 조각들은 실제로 쓰일 때 아래 fetch 핸들러가 런타임 캐시에 담는다.
 const FONT_ASSETS = [
   "https://cdn.jsdelivr.net/gh/fontbee/font@main/Ownglyph/Ownglyph_positive.woff2",
-  "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Regular.woff2",
-  "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Medium.woff2",
-  "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-SemiBold.woff2",
-  "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Bold.woff2",
 ];
 
 self.addEventListener("install", (event) => {

@@ -1234,6 +1234,23 @@ const FONTS_IN_USE = [
   "700 20px Pretendard",
 ];
 
+// Pretendard 는 동적 서브셋이라 글자 범위별로 파일이 쪼개져 있다.
+// 어떤 조각이 필요한지는 글자를 넘겨야 알 수 있으므로, 앱에서 쓰는 문구를
+// 전부 모아 넘긴다. 문구가 바뀌어도 여기 손댈 일이 없다.
+const APP_TEXT = (() => {
+  const parts = [];
+  SCREEN_TEXTS.forEach((t) => {
+    Object.keys(t).forEach((k) => {
+      if (k !== "id" && typeof t[k] === "string") parts.push(t[k]);
+    });
+  });
+  CRY_MESSAGES.forEach((m) => parts.push(m.text));
+  BREATH_STEPS.forEach((s) => parts.push(s.label));
+  parts.push("0123456789% .,");
+  // 같은 글자를 여러 번 넘길 필요는 없다
+  return Array.from(new Set(parts.join("").split(""))).join("");
+})();
+
 function startApp() {
   appEl.classList.add("is-ready");
   renderScreen("SPLASH");
@@ -1252,7 +1269,9 @@ function startApp() {
   // 폰트가 아무리 늦어도 이 시간이 지나면 그냥 시작한다
   setTimeout(go, FONT_WAIT_MS);
 
-  Promise.all(FONTS_IN_USE.map((f) => document.fonts.load(f).catch(() => {})))
+  Promise.all(
+    FONTS_IN_USE.map((f) => document.fonts.load(f, APP_TEXT).catch(() => {}))
+  )
     .then(() => document.fonts.ready)
     .then(go)
     .catch(go);

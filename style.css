@@ -11,37 +11,10 @@
   font-display: block;
 }
 
-/* Pretendard : CDN 의 CSS 는 font-display: swap 으로 되어 있어 우리가 못 바꾼다.
-   그래서 실제로 쓰는 굵기 4종만 같은 파일로 다시 선언한다.
-   이 파일이 CDN CSS 보다 뒤에 오므로 이쪽 정의가 쓰인다. */
-@font-face {
-  font-family: 'Pretendard';
-  src: url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: block;
-}
-@font-face {
-  font-family: 'Pretendard';
-  src: url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: block;
-}
-@font-face {
-  font-family: 'Pretendard';
-  src: url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-SemiBold.woff2') format('woff2');
-  font-weight: 600;
-  font-style: normal;
-  font-display: block;
-}
-@font-face {
-  font-family: 'Pretendard';
-  src: url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: block;
-}
+/* Pretendard 는 동적 서브셋 CDN 을 그대로 쓴다.
+   글자 범위별로 나뉜 828개 face 라 여기서 다시 선언할 수가 없다.
+   그쪽 font-display 는 swap 이지만, script.js 가 폰트를 다 받은 뒤에
+   화면을 띄우므로 글자가 튀는 구간은 생기지 않는다. */
 
 /* 이 Figma 파일에는 바인딩된 변수가 없다(get_variable_defs 결과 {}).
    아래 값은 전부 레이어에서 직접 읽은 실측 HEX 다. */

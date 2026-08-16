@@ -29,14 +29,14 @@
 - assets 폴더의 SVG를 쓰거나, 없으면 어떤 파일이 필요한지 물어볼 것.
 
 ## 폰트
-- index.html <head>에 Pretendard CDN:
-  <link rel="stylesheet" as="style" crossorigin
-    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+- index.html <head>에 Pretendard CDN (동적 서브셋. 통짜는 굵기당 766KB라 안 쓴다):
+  <link rel="stylesheet" crossorigin
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" />
 - style.css 상단에 온글잎 긍정:
   @font-face {
     font-family: 'Ownglyph_positive';
     src: url('https://cdn.jsdelivr.net/gh/fontbee/font@main/Ownglyph/Ownglyph_positive.woff2') format('woff2');
-    font-weight: normal; font-display: swap;
+    font-weight: normal; font-display: block;
   }
 - :root 변수:
   --font-hand: 'Ownglyph_positive', sans-serif;
