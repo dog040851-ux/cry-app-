@@ -155,35 +155,26 @@ let refillDoneTimer = null;
 // ================= 소리 =================
 
 // 트랙마다 Audio 객체를 딱 하나만 만들어 두고 계속 쓴다.
-// 화면이 바뀌어도 새로 만들지 않으므로 BGM 이 끊기지 않는다.
-//
-// pending: 아직 파일이 없는 트랙. 요청 자체를 하지 않아 404 도 콘솔 에러도 남지 않는다.
-// 파일을 sounds/ 에 넣은 뒤 pending 줄만 지우면 그대로 살아난다.
+// 화면이 바뀌어도 새로 만들지 않으므로 소리가 끊기지 않는다.
+
 // 빗소리는 늘 깔려 있고, 누르고 있는 동안에만 조금 커진다.
 const RAIN_VOLUME_IDLE = 0.22;
 const RAIN_VOLUME_CRYING = 0.4;
 
-// ===== 호흡 소리 크기 =====
-// 두 파일의 원래 크기가 크게 다르다 (ffmpeg ebur128 실측).
+// 트랙마다 크기와 페이드 시간을 따로 정한다.
+//   rain   : 켤 때는 스며들 듯 길게, 끌 때는 짧게.
+//            호흡 화면에 들어가면 빗소리가 곧바로 물러나야 한다.
+//   breath : 호흡 화면의 배경음. 들고 날 때 모두 1.5초.
+//
+// 참고 — 두 파일의 원래 크기가 크게 다르다 (ffmpeg ebur128 실측).
 //   빗소리 -37.8 LUFS / 호흡 -17.7 LUFS  → 호흡 파일이 20.1 LU 더 크다.
-// 그래서 volume 숫자를 비슷하게 두면 호흡만 훨씬 크게 들린다.
-// 빗소리와 같은 크기로 맞춘 뒤 2 LU 더 낮춘다.
-const BREATH_LOUDER_BY_LU = 20.1;
-const BREATH_QUIETER_BY_LU = 2;
-const BREATH_VOLUME =
-  RAIN_VOLUME_IDLE * Math.pow(10, -(BREATH_LOUDER_BY_LU + BREATH_QUIETER_BY_LU) / 20);
-
+// 그래서 같은 volume 값이라도 호흡이 훨씬 크게 들린다.
 const SOUND = {
-  bgm:    { src: "sounds/bgm.mp3",    volume: 0.3,  pending: true },
-  rain:   { src: "sounds/rain.mp3",   volume: 0.4 },
-  breath: { src: "sounds/breath.mp3", volume: BREATH_VOLUME },
+  rain:   { src: "sounds/rain.mp3",   volume: 0.4, fadeIn: 1800, fadeOut: 500 },
+  breath: { src: "sounds/breath.mp3", volume: 0.3, fadeIn: 1500, fadeOut: 1500 },
 };
 
-// 켜질 때는 아주 길게, 곡선으로. "켜졌다"는 느낌 없이 스며들게.
-const SOUND_FADE_MS = 1800;
-// 끌 때는 짧게. 호흡 화면에 들어가면 빗소리가 곧바로 물러나야 하고,
-// 음소거 버튼도 누르는 즉시 조용해져야 한다.
-const SOUND_FADE_OUT_MS = 500;
+const SOUND_FADE_MS = 1800; // 설정이 없을 때 쓰는 기본값
 
 // 처음엔 아주 천천히, 끝에서도 완만하게 (smoothstep)
 const easeVolume = (p) => p * p * (3 - 2 * p);
@@ -192,7 +183,7 @@ const tracks = {};
 let isMuted = false;
 let audioUnlocked = false;
 // 트랙별 목표 볼륨. 0 이면 꺼진 것으로 본다. (음소거와 별개)
-const soundLevel = { bgm: 0, rain: 0, breath: 0 };
+const soundLevel = { rain: 0, breath: 0 };
 
 // ===== 왜 Web Audio 를 쓰는가 =====
 // iOS Safari 는 audio.volume 에 값을 넣어도 무시한다. 볼륨은 기기의
@@ -251,13 +242,6 @@ function resumeAudioCtx() {
 
 function buildTracks() {
   Object.keys(SOUND).forEach((name) => {
-    // 아직 없는 파일은 Audio 객체를 아예 만들지 않는다.
-    // 아래 함수들은 전부 audio 가 없으면 조용히 건너뛴다.
-    if (SOUND[name].pending) {
-      tracks[name] = { audio: null, gain: null, rafId: null, failed: true };
-      return;
-    }
-
     const audio = new Audio(SOUND[name].src);
     audio.loop = true;
     audio.preload = "auto";
@@ -308,8 +292,12 @@ function applyAudio() {
       if (p && p.catch) p.catch(() => {});
     }
 
-    // 줄이는 쪽은 짧게, 키우는 쪽은 길게.
-    const fadeMs = target < trackVolume(t) ? SOUND_FADE_OUT_MS : SOUND_FADE_MS;
+    // 페이드 시간은 트랙마다 다르다 (SOUND 참고)
+    const cfg = SOUND[name];
+    const fadeMs =
+      target < trackVolume(t)
+        ? cfg.fadeOut || SOUND_FADE_MS
+        : cfg.fadeIn || SOUND_FADE_MS;
 
     fadeTo(name, target, () => {
       // 이 트랙이 필요 없어졌을 때만 멈춘다. 음소거는 멈추지 않는다.
@@ -326,9 +314,6 @@ function setScreenAudio(state) {
   // 브라우저가 자동재생을 막고 있어 어차피 들리지도 않는다.
   const onIntro = state === "SPLASH" || state === "TAP_TO_START";
 
-  // BGM 은 화면을 누르고 HOME 에 들어오는 순간부터 계속 유지된다
-  if (!onIntro) soundLevel.bgm = SOUND.bgm.volume;
-
   // 빗소리는 HOME 부터 늘 깔려 있다가 누르는 동안만 조금 커진다.
   // 볼륨만 바뀌므로 버튼을 떼도 끊기지 않고 원래 크기로 되돌아간다.
   // 호흡 화면에서는 완전히 멈춘다.
@@ -338,7 +323,9 @@ function setScreenAudio(state) {
     soundLevel.rain = state === "CRYING" ? RAIN_VOLUME_CRYING : RAIN_VOLUME_IDLE;
   }
 
-  // 호흡 소리는 호흡 준비·호흡 중에만. 호흡이 끝나면 페이드아웃된다.
+  // 호흡 화면의 배경음. 준비(BREATH_INTRO)에서 스며들어 호흡 중에도
+  // 그대로 이어지고, 호흡이 끝나면(BREATH_DONE) 빠져나간다.
+  // 두 상태가 한 화면을 쓰므로 그 사이에는 끊길 일이 없다.
   soundLevel.breath = state === "BREATH_INTRO" || state === "BREATHING"
     ? SOUND.breath.volume
     : 0;
