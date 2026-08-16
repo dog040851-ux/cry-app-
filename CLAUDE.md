@@ -32,12 +32,14 @@
 - index.html <head>에 Pretendard CDN (동적 서브셋. 통짜는 굵기당 766KB라 안 쓴다):
   <link rel="stylesheet" crossorigin
     href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" />
-- style.css 상단에 온글잎 긍정:
+- style.css 상단에 온글잎 긍정 (CDN 원본 3.15MB → 쓰는 글자만 뽑은 13.8KB 서브셋):
   @font-face {
     font-family: 'Ownglyph_positive';
-    src: url('https://cdn.jsdelivr.net/gh/fontbee/font@main/Ownglyph/Ownglyph_positive.woff2') format('woff2');
+    src: url('assets/Ownglyph_positive-subset.woff2') format('woff2');
     font-weight: normal; font-display: block;
   }
+- 손글씨 문구(스플래시 제목·부제목, 시작 화면 문구)를 바꾸면
+  서브셋에 없는 글자는 기본 고딕으로 나온다. 문구를 바꾸면 서브셋도 다시 만들 것.
 - :root 변수:
   --font-hand: 'Ownglyph_positive', sans-serif;
   --font-ui: 'Pretendard', sans-serif;

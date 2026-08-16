@@ -2,7 +2,7 @@
 //
 // 배포할 때마다 CACHE_VERSION 을 올려야 사용자가 새 파일을 받는다.
 // 이 값이 바뀌면 예전 캐시는 activate 단계에서 통째로 지워진다.
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const CORE_CACHE = "ulmong-core-" + CACHE_VERSION;
 const RUNTIME_CACHE = "ulmong-runtime-" + CACHE_VERSION;
 
@@ -43,6 +43,8 @@ const CORE_ASSETS = [
   "/assets/icon-sound-on.svg",
   "/assets/icon-sound-off.svg",
   "/assets/icon-question.svg",
+
+  "/assets/Ownglyph_positive-subset.woff2",
 ];
 
 // 소리 파일은 22MB 라 설치를 막지 않도록 나중에 따로 받는다.
@@ -52,12 +54,10 @@ const AUDIO_ASSETS = [
   "/sounds/breath.mp3",
 ];
 
-// 온글잎은 3.3MB 통짜 파일 하나뿐이라 미리 받아 둔다.
+// 온글잎은 13.8KB 서브셋이라 CORE_ASSETS 에 넣어 설치 때 같이 받는다.
 // Pretendard 는 동적 서브셋이라 어떤 조각이 필요한지 미리 알 수 없다.
 // 조각들은 실제로 쓰일 때 아래 fetch 핸들러가 런타임 캐시에 담는다.
-const FONT_ASSETS = [
-  "https://cdn.jsdelivr.net/gh/fontbee/font@main/Ownglyph/Ownglyph_positive.woff2",
-];
+const FONT_ASSETS = [];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
