@@ -509,6 +509,10 @@ function syncBackdrop(screen) {
   const size = style.getPropertyValue("--bg-size").trim();
   const position = style.getPropertyValue("--bg-position").trim();
 
+  // html 에도 같이 넣어야 한다.
+  // 캔버스 배경(상태바 자리·바운스 영역)은 html 에 배경이 있으면 그쪽을 쓰고
+  // body 것은 무시한다. body 만 바꾸면 그 영역이 계속 흰색으로 남는다.
+  document.documentElement.style.backgroundColor = edge;
   document.body.style.backgroundColor = edge;
   backdropEl.style.backgroundColor = edge;
   // 안드로이드 크롬의 상단 바 색도 화면 따라 바뀐다.
