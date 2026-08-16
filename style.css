@@ -1118,12 +1118,16 @@ button:hover {
 /* ===== 안내 말풍선 (1972:10649 : x28 y100 332x113) =====
    물음표(331,61) 바로 아래에 뜨고 오른쪽 끝이 아이콘과 나란히 맞는다.
    시안에 꼬리(tail) 도형은 없다. */
+/* 글자는 시안대로 좌15 상21 에서 시작한다. 다만 높이는 고정하지 않는다.
+   시안(113px)은 손글씨체 기준이라 Pretendard 로 바꾸면 줄 수가 늘어난다.
+   내용만큼 자라게 두어야 잘리지 않는다. */
 .bubble {
   position: absolute;
   left: 28px;
   top: 100px;
   width: 332px;
-  height: 113px;
+  min-height: 113px;
+  padding: 21px 15px;
   border-radius: 16px;
   background: #F9FCFB;
   border: 0.2px solid rgba(145, 177, 161, 0.85);
@@ -1143,34 +1147,39 @@ button:hover {
   transition: opacity 240ms var(--ease-screen), visibility 0s;
 }
 
+/* 말풍선 안은 전부 Pretendard 다.
+   (시안은 여기도 손글잎이지만, 손글씨는 스플래시 제목·부제목에만 쓴다는
+   프로젝트 규칙을 따른다. 손글씨보다 글자폭이 넓어 줄 수가 늘어난다.)
+
+   줄바꿈은 시안처럼 고정하지 않고 폭에 맞춰 흐르게 둔다. 고정해두면
+   글꼴이 바뀌는 순간 그대로 넘쳐서 잘린다.
+   keep-all : 한글 단어 중간에서 끊지 않는다.
+   break-word : 이메일처럼 긴 덩어리는 자리가 정 없을 때만 넘긴다.
+                (break-all 과 달리 여유가 있으면 통째로 다음 줄로 내려간다) */
 .bubble__text {
-  position: absolute;
-  left: 15px;
-  top: 21px;
-  width: 302px;
   margin: 0;
-  font-family: var(--font-hand);
-  font-weight: normal;
+  font-family: var(--font-ui);
+  font-weight: 400;
   font-size: 15px;
   line-height: 1.58;
   color: #111111;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
-/* 시안에서 줄이 직접 끊겨 있어 그대로 옮긴다 */
-.bubble__text span {
-  display: block;
-  white-space: pre;
+/* 마지막 문장. 시안대로 초록 17px, 클로버만 15px. */
+.bubble__text--note {
+  margin-top: 6px;
 }
 
-/* 마지막 줄 앞부분만 초록색 */
-.bubble__text em {
+.bubble__text--note em {
   font-style: normal;
+  font-size: 17px;
   color: #157F35;
 }
 
-/* 마지막 줄만 조금 크게 */
-.bubble__text span:last-child {
-  font-size: 17px;
+.bubble__leaf {
+  font-size: 15px;
 }
 
 /* 호흡 끝 화면의 "Lucky Day" (1936:5823) */
