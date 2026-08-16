@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.github.dog040851ux.ulmong",
+      "sha256_cert_fingerprints": [
+        "01:5F:DA:C8:0A:74:2F:22:94:8E:14:40:72:AE:B2:83:C8:47:59:6E:0D:8E:AE:5D:26:F4:46:38:B4:43:61:4A"
+      ]
+    }
+  }
+]

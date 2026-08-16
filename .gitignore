@@ -5,6 +5,9 @@
 # 저장소에도 배포에도 올리지 않는다. 원본은 내 PC 에만 남는다.
 sounds/original/
 
+# 작업용 원본 폴더. sounds/original/ 과 같은 파일이다(MD5 동일).
+소리/
+
 # 윈도우 / 맥이 만드는 찌꺼기
 Thumbs.db
 desktop.ini
