@@ -2,7 +2,7 @@
 //
 // 배포할 때마다 CACHE_VERSION 을 올려야 사용자가 새 파일을 받는다.
 // 이 값이 바뀌면 예전 캐시는 activate 단계에서 통째로 지워진다.
-const CACHE_VERSION = "v6";
+const CACHE_VERSION = "v7";
 const CORE_CACHE = "ulmong-core-" + CACHE_VERSION;
 const RUNTIME_CACHE = "ulmong-runtime-" + CACHE_VERSION;
 
@@ -106,22 +106,24 @@ function cacheHeavyAssetsInBackground() {
 // 코드 파일. 내용이 계속 바뀌므로 절대 캐시 우선으로 두면 안 된다.
 // 캐시 우선으로 두면 CACHE_VERSION 을 올리기 전까지 옛 코드가 영원히 나온다.
 // (실제로 깨진 script.js 가 캐시에 박혀 스플래시가 0% 에서 멈춘 적이 있다.)
-const CODE_PATHS = new Set(["/", "/index.html", "/style.css", "/script.js", "/manifest.json"]);
+const CODE_PATHS = new Set(["/", "/index.html", "/style.css", "/script.js", "/manifest.json", "/privacy", "/privacy.html"]);
 
 // 네트워크를 먼저 보고, 성공하면 캐시도 최신으로 갱신한다.
 // 오프라인일 때만 캐시에 있는 것을 돌려준다.
-function networkFirst(request, fallbackPath) {
+//
+// cacheKey 는 반드시 요청한 주소와 같아야 한다. 예전에는 화면 이동을
+// 전부 "/index.html" 로 담았는데, 그러면 /privacy.html 을 한 번 열었을 때
+// 그 내용이 첫 화면 자리에 저장돼 오프라인에서 엉뚱한 페이지가 뜬다.
+function networkFirst(request, cacheKey) {
   return fetch(request)
     .then((response) => {
       if (response && response.ok) {
         const copy = response.clone();
-        caches.open(CORE_CACHE).then((cache) => cache.put(fallbackPath, copy));
+        caches.open(CORE_CACHE).then((cache) => cache.put(cacheKey, copy));
       }
       return response;
     })
-    .catch(() =>
-      caches.match(fallbackPath).then((hit) => hit || caches.match("/index.html"))
-    );
+    .catch(() => caches.match(cacheKey));
 }
 
 self.addEventListener("fetch", (event) => {
@@ -134,7 +136,14 @@ self.addEventListener("fetch", (event) => {
   // 화면 이동은 네트워크를 먼저 본다. 새로 배포한 내용이 바로 반영되고,
   // 오프라인이면 캐시에 있는 index.html 을 돌려준다.
   if (request.mode === "navigate") {
-    event.respondWith(networkFirst(request, "/index.html"));
+    // 앱 첫 화면은 "/" 로 오든 "/index.html" 로 오든 같은 자리에 담는다.
+    const isRoot = !sameOrigin || url.pathname === "/" || url.pathname === "/index.html";
+    event.respondWith(
+      networkFirst(request, isRoot ? "/index.html" : url.pathname).then(
+        // 오프라인인데 그 페이지가 캐시에 없으면 첫 화면이라도 돌려준다
+        (res) => res || caches.match("/index.html")
+      )
+    );
     return;
   }
 
