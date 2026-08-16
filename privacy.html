@@ -45,46 +45,18 @@
       calc(24px + env(safe-area-inset-left, 0px));
   }
 
-  main {
-    max-width: 640px;
-    margin: 0 auto;
-  }
+  main { max-width: 640px; margin: 0 auto; }
 
   h1 {
-    margin: 0 0 8px;
+    margin: 0 0 28px;
     font-size: 26px;
     font-weight: 700;
     color: var(--ink-strong);
     letter-spacing: -0.3px;
   }
 
-  .updated {
-    margin: 0 0 40px;
-    font-size: 14px;
-    color: #8A928D;
-  }
-
-  h2 {
-    margin: 40px 0 10px;
-    padding-top: 24px;
-    border-top: 1px solid var(--line);
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--ink-strong);
-  }
-
-  h2:first-of-type { border-top: none; padding-top: 0; }
-
-  p { margin: 0 0 14px; }
-
-  ul {
-    margin: 0 0 14px;
-    padding-left: 20px;
-  }
-
-  li { margin-bottom: 6px; }
-
   .lead {
+    margin: 0 0 40px;
     padding: 18px 20px;
     border-radius: 14px;
     background: #F2F7F4;
@@ -92,91 +64,71 @@
     font-weight: 600;
   }
 
+  h2 {
+    margin: 34px 0 8px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink-strong);
+  }
+
+  h2:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+
+  p { margin: 0 0 14px; }
+
   a { color: var(--accent); }
+
+  .effective {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 15px;
+    color: #8A928D;
+  }
 
   .back {
     display: inline-block;
-    margin-top: 48px;
+    margin-top: 32px;
     font-size: 15px;
     text-decoration: none;
     color: var(--accent);
   }
 
   .back:hover { text-decoration: underline; }
-
-  footer {
-    margin-top: 40px;
-    padding-top: 20px;
-    border-top: 1px solid var(--line);
-    font-size: 14px;
-    color: #8A928D;
-  }
 </style>
 </head>
 <body>
 <main>
   <h1>개인정보처리방침</h1>
-  <p class="updated">울몽(Ulmong) · 시행일 2026년 8월 16일</p>
 
-  <p class="lead">울몽은 이용자의 개인정보를 수집하지 않습니다.
-    회원가입이 없고, 이름·이메일·연락처·위치 같은 어떤 정보도 요구하지 않습니다.</p>
+  <p class="lead">울몽(이하 '본 앱')은 이용자의 개인정보를 일절 수집하지 않습니다.</p>
 
   <h2>1. 수집하는 개인정보</h2>
-  <p>없습니다. 울몽은 다음 중 어느 것도 수집하거나 저장하지 않습니다.</p>
-  <ul>
-    <li>이름, 이메일, 전화번호 등 신원 정보</li>
-    <li>계정 정보 (회원가입·로그인 기능 자체가 없습니다)</li>
-    <li>위치 정보</li>
-    <li>연락처, 사진, 파일 등 기기 내 데이터</li>
-    <li>광고 식별자</li>
-  </ul>
-
-  <h2>2. 이용 기록 분석</h2>
-  <p>사용 기록을 분석하는 도구를 넣지 않았습니다. 구글 애널리틱스를 비롯한
-    어떤 분석·추적 도구도 사용하지 않으며, 쿠키를 만들지 않습니다.</p>
-
-  <h2>3. 기기에 저장되는 것</h2>
-  <p>앱을 빠르게 열기 위해, 화면을 그리는 데 필요한 파일(HTML·CSS·스크립트·아이콘·글꼴·소리)을
-    이용자 기기 안에만 저장합니다. 개인정보가 아니며 외부로 전송되지 않습니다.</p>
-  <p>이 저장분은 앱을 삭제하거나 브라우저의 사이트 데이터를 지우면 함께 사라집니다.</p>
-
-  <h2>4. 외부 서비스</h2>
-  <p>앱이 동작하기 위해 아래 서비스에 접속합니다. 웹을 이용할 때 일반적으로 오가는
-    정보(IP 주소, 접속 시각, 브라우저 종류 등)가 해당 사업자에게 전달될 수 있으며,
-    이는 각 사업자의 방침에 따릅니다.</p>
-  <ul>
-    <li><strong>Vercel</strong> — 앱을 전달하는 호스팅</li>
-    <li><strong>jsDelivr</strong> — 글꼴 파일 전달</li>
-  </ul>
-  <p>이 두 곳 외의 서버로는 어떤 정보도 보내지 않습니다.</p>
-
-  <h2>5. 문의로 받은 정보</h2>
-  <p>앱 안의 안내를 보고 이메일로 문의를 주시면, 그 메일에 담긴 내용과 발신 주소를
-    답변을 위해서만 사용합니다. 답변이 끝나면 더 이용하지 않으며, 다른 목적으로
-    활용하거나 제3자에게 제공하지 않습니다.</p>
-
-  <h2>6. 제3자 제공 및 판매</h2>
-  <p>수집하는 정보가 없으므로 제3자에게 제공하거나 판매하는 정보도 없습니다.</p>
-
-  <h2>7. 아동의 개인정보</h2>
-  <p>울몽은 특정 연령을 대상으로 하지 않으며, 아동을 포함한 누구의 개인정보도
+  <p>본 앱은 이름, 이메일, 전화번호, 위치정보, 기기 식별자 등 어떠한 개인정보도
     수집하지 않습니다.</p>
 
-  <h2>8. 이용자의 권리</h2>
-  <p>보관하는 개인정보가 없어 열람·정정·삭제를 요청할 대상이 없습니다.
-    기기에 저장된 앱 데이터는 이용자가 직접 언제든 삭제할 수 있습니다.</p>
+  <h2>2. 데이터 저장 및 전송</h2>
+  <p>본 앱에서 이루어지는 모든 동작은 이용자의 기기 내에서만 처리되며,
+    외부 서버로 전송되거나 저장되지 않습니다.</p>
 
-  <h2>9. 방침 변경</h2>
-  <p>내용이 바뀌면 이 페이지에 갱신하고 시행일을 함께 적습니다.
-    중요한 변경이 있을 경우 앱 안에서도 알려드립니다.</p>
+  <h2>3. 제3자 제공</h2>
+  <p>수집하는 정보가 없으므로 제3자에게 제공하는 정보도 없습니다.</p>
 
-  <h2>10. 문의처</h2>
-  <p>개인정보 처리에 관한 문의는 아래로 보내주세요.<br />
-    <a href="mailto:yuipoi270@gmail.com">yuipoi270@gmail.com</a></p>
+  <h2>4. 광고 및 분석 도구</h2>
+  <p>본 앱은 광고 및 분석 도구를 사용하지 않습니다.</p>
+
+  <h2>5. 아동의 개인정보</h2>
+  <p>본 앱은 개인정보를 수집하지 않으므로 연령과 무관하게 안전하게
+    이용하실 수 있습니다.</p>
+
+  <h2>6. 문의</h2>
+  <p>개인정보처리방침에 관한 문의사항은 아래로 연락해 주시기 바랍니다.<br />
+    이메일: <a href="mailto:yuipoi270@gmail.com">yuipoi270@gmail.com</a></p>
+
+  <p class="effective">시행일: 2026년 8월 16일</p>
 
   <a class="back" href="/">← 울몽으로 돌아가기</a>
-
-  <footer>울몽 · 같이 울어주는 앱</footer>
 </main>
 </body>
 </html>

@@ -1170,9 +1170,22 @@ button:hover {
   overflow-wrap: break-word;
 }
 
+/* 두 번째 문단부터는 앞 문단과 한 줄 띄운다 */
+.bubble__text + .bubble__text {
+  margin-top: 10px;
+}
+
+/* 개인정보처리방침 링크. 새 탭으로 열린다.
+   글꼴은 말풍선과 같은 손글씨 그대로, 색과 밑줄로만 구분한다. */
+.bubble__link {
+  color: var(--accent-link, #157F35);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* 마지막 문장. 시안대로 초록 17px, 클로버만 15px. */
 .bubble__text--note {
-  margin-top: 6px;
+  margin-top: 10px;
 }
 
 .bubble__text--note em {
