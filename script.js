@@ -1209,6 +1209,51 @@ renderSpeedToggle();
 buildHearts();
 buildRain();
 // 첫 화면은 HTML 에서 이미 is-active 라 showScreen 이 일찍 빠져나간다.
-// 바깥 배경층은 여기서 한 번 맞춰 준다.
+// 바깥 배경층은 여기서 한 번 맞춰 준다. (배경은 폰트와 무관하게 바로 보인다)
 syncBackdrop(document.getElementById("screen-splash"));
-renderScreen("SPLASH");
+
+// ================= 폰트가 준비된 뒤에 시작 =================
+//
+// 폰트가 오기 전에 시작하면 시스템 기본 글꼴로 먼저 그려졌다가 바뀐다.
+// @font-face 를 font-display: block 으로 두어 글자가 안 그려지게 했고,
+// 여기서는 폰트가 다 온 뒤에 화면을 띄운다. 그때까지는 배경색만 보인다.
+//
+// 스플래시 진행도 이때 시작한다. 미리 돌려두면 화면이 나타나는 순간
+// 이미 30% 쯤 차 있어서 0 부터 차오르는 그림이 깨진다.
+const FONT_WAIT_MS = 2000;
+
+// 실제로 쓰는 조합만 골라 미리 받는다.
+// 글자가 화면에 올라가야 폰트를 요청하는데, 지금은 글자를 안 그리고 있어서
+// 이렇게 직접 요청하지 않으면 document.fonts.ready 가 그냥 바로 끝나버린다.
+const FONTS_IN_USE = [
+  "48px Ownglyph_positive",
+  "24px Ownglyph_positive",
+  "400 15px Pretendard",
+  "500 18px Pretendard",
+  "600 20px Pretendard",
+  "700 20px Pretendard",
+];
+
+function startApp() {
+  appEl.classList.add("is-ready");
+  renderScreen("SPLASH");
+}
+
+(function waitForFonts() {
+  if (!document.fonts || !document.fonts.ready) { startApp(); return; }
+
+  let started = false;
+  const go = () => {
+    if (started) return;
+    started = true;
+    startApp();
+  };
+
+  // 폰트가 아무리 늦어도 이 시간이 지나면 그냥 시작한다
+  setTimeout(go, FONT_WAIT_MS);
+
+  Promise.all(FONTS_IN_USE.map((f) => document.fonts.load(f).catch(() => {})))
+    .then(() => document.fonts.ready)
+    .then(go)
+    .catch(go);
+})();

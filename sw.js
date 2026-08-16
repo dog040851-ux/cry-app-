@@ -2,7 +2,7 @@
 //
 // 배포할 때마다 CACHE_VERSION 을 올려야 사용자가 새 파일을 받는다.
 // 이 값이 바뀌면 예전 캐시는 activate 단계에서 통째로 지워진다.
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const CORE_CACHE = "ulmong-core-" + CACHE_VERSION;
 const RUNTIME_CACHE = "ulmong-runtime-" + CACHE_VERSION;
 
@@ -52,6 +52,16 @@ const AUDIO_ASSETS = [
   "/sounds/breath.mp3",
 ];
 
+// 폰트도 마찬가지로 무겁다(온글잎 3.3MB + Pretendard 4종 3.1MB).
+// 한 번 받아 두면 다음 실행부터는 글자가 바로 뜬다.
+const FONT_ASSETS = [
+  "https://cdn.jsdelivr.net/gh/fontbee/font@main/Ownglyph/Ownglyph_positive.woff2",
+  "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Regular.woff2",
+  "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Medium.woff2",
+  "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-SemiBold.woff2",
+  "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Bold.woff2",
+];
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
@@ -80,19 +90,20 @@ self.addEventListener("activate", (event) => {
         )
       )
       .then(() => self.clients.claim())
-      .then(() => cacheAudioInBackground())
+      .then(() => cacheHeavyAssetsInBackground())
   );
 });
 
 // 설치가 끝난 뒤 조용히 받아 둔다. 실패해도 앱 동작에는 지장이 없다.
-function cacheAudioInBackground() {
-  return caches.open(RUNTIME_CACHE).then((cache) =>
-    Promise.all(
-      AUDIO_ASSETS.map((url) =>
-        cache.match(url).then((hit) => (hit ? null : cache.add(url).catch(() => {})))
-      )
-    )
-  );
+// 폰트를 먼저 받는다. 글자가 늦게 뜨는 게 소리가 늦는 것보다 눈에 띈다.
+function cacheHeavyAssetsInBackground() {
+  return caches.open(RUNTIME_CACHE).then((cache) => {
+    const grab = (url) =>
+      cache.match(url).then((hit) => (hit ? null : cache.add(url).catch(() => {})));
+    return Promise.all(FONT_ASSETS.map(grab)).then(() =>
+      Promise.all(AUDIO_ASSETS.map(grab))
+    );
+  });
 }
 
 // 코드 파일. 내용이 계속 바뀌므로 절대 캐시 우선으로 두면 안 된다.
