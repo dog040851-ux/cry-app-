@@ -59,7 +59,10 @@
 - Play 앱 서명을 쓰면 구글이 다른 키로 재서명하므로 지문이 하나 더 생긴다.
   Play Console → 설정 → 앱 무결성 → "앱 서명 키 인증서" 의 SHA-256 을 배열에 추가할 것.
   업로드 키 지문만 넣어두면 스토어에서 받은 앱에서는 검증이 실패한다.
-- 패키지명 io.github.dog040851ux.ulmong 은 출시 후 변경 불가.
+- 패키지명은 com.dog040851.ulmong 이다. 출시 후에는 변경 불가.
+  assetlinks.json 의 package_name, twa-manifest.json 의 packageId,
+  app/build.gradle 의 applicationId 이 셋이 항상 같아야 한다.
+  하나라도 어긋나면 검증이 조용히 실패하고 주소창이 뜬다.
 
 ## 작업 방식
 - 한 번에 한 화면만 작업한다. 여러 화면 동시 수정 금지.
