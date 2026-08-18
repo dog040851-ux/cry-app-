@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "com.dog040851.ulmong",
       "sha256_cert_fingerprints": [
-        "01:5F:DA:C8:0A:74:2F:22:94:8E:14:40:72:AE:B2:83:C8:47:59:6E:0D:8E:AE:5D:26:F4:46:38:B4:43:61:4A"
+        "01:5F:DA:C8:0A:74:2F:22:94:8E:14:40:72:AE:B2:83:C8:47:59:6E:0D:8E:AE:5D:26:F4:46:38:B4:43:61:4A",
+        "64:72:00:13:0E:FC:1E:BA:80:7B:A9:BB:69:10:3F:EC:1A:0A:F6:00:A5:99:5C:CD:AB:18:11:AB:45:3B:5C:9F"
       ]
     }
   }
