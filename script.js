@@ -971,6 +971,9 @@ function startCryDrain() {
     setHeart("screen-crying", heartPercent);
 
     if (heartPercent <= 0) {
+      // 손가락을 누른 채로 넘어가는 전환이다. 이 자리에 "숨쉬러 가기" 가
+      // 새로 생기므로, 손을 뗄 때 그 뗌이 그 버튼의 click 이 되지 않게 막는다.
+      if (pressActive) heldThroughTransition = true;
       renderScreen("CRY_DONE");
       return;
     }
@@ -1027,6 +1030,33 @@ function startHeartRefill() {
 // window 에 걸어둔 pointerup 은 그대로(버블링으로) 받는다.
 let capturedPointerId = null;
 
+// ===== 손 떼는 동작이 새 버튼을 눌러버리는 것 막기 =====
+// 하트가 0 이 되면 누르고 있는 도중에 CRY_DONE 으로 넘어간다.
+// 방금까지 울기 버튼이 있던 자리에 "숨쉬러 가기" 가 새로 생기므로,
+// 손가락을 그대로 떼면 그 뗌이 그대로 그 버튼의 click 이 되어
+// "조금 더 울기" 를 볼 새도 없이 호흡 화면으로 넘어가 버린다.
+//
+// 그래서 누른 채로 화면이 바뀌면, 그 손가락을 뗄 때까지 새 화면의 버튼을
+// 받지 않는다. 손을 떼고 "다시 눌러야" 반응한다.
+//
+// 뗀 즉시 풀면 소용이 없다. click 은 pointerup 바로 뒤에 따라오므로
+// 그때 이미 풀려 있으면 그대로 눌린다. 그래서 뗀 뒤로 잠깐 더 잠가 둔다.
+// 전환 시각이 아니라 "손을 뗀 시각" 이 기준이다 — 하트가 빈 뒤에도
+// 한참 누르고 있다가 떼는 경우가 있어서, 전환 기준으로는 막지 못한다.
+const REARM_AFTER_RELEASE_MS = 300;
+let pressActive = false;           // 지금 버튼을 누르고 있는가
+let heldThroughTransition = false; // 누른 채로 화면이 바뀌었는가
+let rearmAt = 0;                   // 이 시각이 지나야 버튼을 받는다
+
+// 누른 채로 넘어온 화면의 버튼이면 아직 받지 않는다
+function buttonBlocked() {
+  if (!heldThroughTransition) return false;
+  if (pressActive) return true;                  // 아직 손가락이 붙어 있다
+  if (performance.now() < rearmAt) return true;  // 뗀 직후 따라온 click 이다
+  heldThroughTransition = false;                 // 이제부터 정상으로 받는다
+  return false;
+}
+
 function capturePointer(event) {
   if (!appEl || typeof appEl.setPointerCapture !== "function") return;
   if (event.pointerId === undefined) return;
@@ -1056,6 +1086,7 @@ function handlePressStart(event) {
   if (currentState !== "HOME") return;
   // 화면이 바뀌기 전에 잡아 둔다
   capturePointer(event);
+  pressActive = true;
   hasStartedCrying = true;
   cryPressStartTs = typeof event.timeStamp === "number" ? event.timeStamp : performance.now();
   renderScreen("CRYING");
@@ -1070,6 +1101,14 @@ function handlePressStart(event) {
 // 캡처가 남아 그다음 터치들이 전부 #app 으로 끌려간다.
 function handlePressEnd(event) {
   releasePointer();
+
+  // 상태와 관계없이 기록한다. 누른 채로 화면이 바뀌었다면 지금이 그 손가락을
+  // 뗀 순간이고, 바로 뒤에 따라올 click 을 막아야 한다.
+  if (pressActive) {
+    pressActive = false;
+    rearmAt = performance.now() + REARM_AFTER_RELEASE_MS;
+  }
+
   if (currentState !== "CRYING") return;
   event.preventDefault();
   renderScreen("HOME");
@@ -1092,11 +1131,13 @@ window.addEventListener("pointercancel", handlePressEnd);
 
 el("cryDoneButton").addEventListener("click", () => {
   if (currentState !== "CRY_DONE") return;
+  if (buttonBlocked()) return; // 울다가 손 떼는 동작으로는 넘어가지 않는다
   renderScreen("BREATH_INTRO");
 });
 
 el("cryMoreButton").addEventListener("click", () => {
   if (currentState !== "CRY_DONE" || refillRafId) return;
+  if (buttonBlocked()) return;
   // 누르는 즉시 버튼을 지우고, 그 다음에 물이 차오른다
   el("cryMoreButton").dataset.gone = "true";
   startHeartRefill();
