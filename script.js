@@ -203,6 +203,41 @@ let audioUnlocked = false;
 // 트랙별 목표 볼륨. 0 이면 꺼진 것으로 본다. (음소거와 별개)
 const soundLevel = { rain: 0, breath: 0 };
 
+// ===== 소리 흐름 추적 =====
+// 소리가 안 날 때 어느 지점에서 끊겼는지 보려면 켠다. 평소에는 조용하다.
+//   주소 뒤에 ?audiodebug=1 을 붙이거나
+//   콘솔에서 localStorage.ulmongAudioDebug = "1" 한 뒤 새로고침
+let audioDebug = false;
+try {
+  audioDebug =
+    location.search.indexOf("audiodebug=1") !== -1 ||
+    localStorage.getItem("ulmongAudioDebug") === "1";
+} catch (e) {
+  /* 시크릿 모드 등에서 localStorage 가 막혀 있어도 그냥 넘어간다 */
+}
+
+function trace(where, detail) {
+  if (!audioDebug) return;
+  console.log("[소리·추적] " + where + (detail ? " : " + detail : ""));
+}
+
+// 지금 트랙들이 어떤 상태인지 한 줄로
+function trackSummary() {
+  return Object.keys(SOUND)
+    .map((name) => {
+      const t = tracks[name];
+      if (!t || !t.audio) return name + "=없음";
+      const vol = t.gain ? t.gain.gain.value : t.audio.volume;
+      return (
+        name + "{목표 " + soundLevel[name] +
+        ", 실제 " + vol.toFixed(3) +
+        ", " + (t.audio.paused ? "멈춤" : "재생중") +
+        ", readyState " + t.audio.readyState + "}"
+      );
+    })
+    .join(" ");
+}
+
 // ===== 왜 Web Audio 를 쓰는가 =====
 // iOS Safari 는 audio.volume 에 값을 넣어도 무시한다. 볼륨은 기기의
 // 하드웨어 버튼으로만 정해진다. 그래서 아이폰에서는 음소거도, 페이드도
@@ -251,10 +286,18 @@ function routeThroughGain() {
 }
 
 // iOS 는 화면을 벗어났다 돌아오면 컨텍스트를 재워둔다. 필요할 때마다 깨운다.
+//
+// 컨텍스트가 suspended 로 남아 있으면 audio 는 "재생중" 인데 소리만 안 난다.
+// paused 가 false 라 멀쩡해 보여서 특히 찾기 어렵다. 그래서 결과를 남긴다.
 function resumeAudioCtx() {
-  if (audioCtx && audioCtx.state === "suspended") {
-    const p = audioCtx.resume();
-    if (p && p.catch) p.catch(() => {});
+  if (!audioCtx) return;
+  if (audioCtx.state !== "suspended") return;
+  const p = audioCtx.resume();
+  if (p && p.then) {
+    p.then(
+      () => trace("AudioContext.resume 성공", "state=" + audioCtx.state),
+      (e) => logAudioError("AudioContext", "resume 실패", (e && e.message) || String(e))
+    );
   }
 }
 
@@ -287,6 +330,7 @@ function logAudioError(name, where, detail) {
 // NotSupportedError 는 소스 자체를 못 여는 경우다.
 function playTrack(name, t, where, onPlaying) {
   if (!t || !t.audio) return;
+  trace("play() 호출 — " + name, where);
   let p;
   try {
     p = t.audio.play();
@@ -294,8 +338,24 @@ function playTrack(name, t, where, onPlaying) {
     logAudioError(name, where + " play() 예외", e && e.message ? e.message : String(e));
     return;
   }
-  if (!p || !p.catch) { if (onPlaying) onPlaying(); return; } // Promise 를 안 돌려주는 옛 브라우저
-  if (onPlaying) p.then(onPlaying, () => {});
+  if (!p || !p.catch) { // Promise 를 안 돌려주는 옛 브라우저
+    if (onPlaying) onPlaying();
+    return;
+  }
+
+  // 재생이 시작되기 전에 pause() 를 하면 이 play() 가 통째로 취소된다(AbortError).
+  // 그러면 잠금 해제가 성립하지 않는다. 그래서 "재생 요청이 아직 처리 중"
+  // 이라는 표시를 남기고, 그동안에는 아무도 이 트랙을 멈추지 못하게 한다.
+  t.playPending = true;
+  p.then(
+    () => {
+      t.playPending = false;
+      trace("play() 성공 — " + name, where);
+      if (onPlaying) onPlaying();
+    },
+    () => { t.playPending = false; }
+  );
+
   p.catch((e) => {
     const kind = e && e.name ? e.name : "UnknownError";
     let why = e && e.message ? e.message : "";
@@ -323,7 +383,7 @@ function buildTracks() {
         describeMediaError(audio.error)
       );
     });
-    tracks[name] = { audio, gain: null, rafId: null, failed: false };
+    tracks[name] = { audio, gain: null, rafId: null, failed: false, playPending: false };
   });
 }
 
@@ -352,7 +412,11 @@ function fadeTo(name, target, onDone, durationMs) {
 // 음소거 중에도 오디오는 계속 돌고 volume 만 0 이다.
 // 그래야 다시 켰을 때 처음부터가 아니라 이어서 들린다.
 function applyAudio() {
-  if (!audioUnlocked) return;
+  if (!audioUnlocked) {
+    trace("applyAudio 건너뜀", "아직 잠금이 안 풀렸다 (audioUnlocked=false)");
+    return;
+  }
+  trace("applyAudio", trackSummary() + (isMuted ? " / 음소거 켜짐" : ""));
   resumeAudioCtx();
 
   Object.keys(SOUND).forEach((name) => {
@@ -362,7 +426,7 @@ function applyAudio() {
     const level = soundLevel[name];
     const target = isMuted ? 0 : level;
 
-    if (level > 0 && t.audio.paused) {
+    if (level > 0 && t.audio.paused && !t.playPending) {
       playTrack(name, t, "applyAudio");
     }
 
@@ -375,7 +439,15 @@ function applyAudio() {
 
     fadeTo(name, target, () => {
       // 이 트랙이 필요 없어졌을 때만 멈춘다. 음소거는 멈추지 않는다.
-      if (soundLevel[name] === 0 && !t.audio.paused) t.audio.pause();
+      //
+      // playPending 을 반드시 봐야 한다. 볼륨이 이미 목표값이면 fadeTo 가
+      // 이 콜백을 그 자리에서(동기로) 부르는데, 방금 play() 한 트랙이
+      // 여기에 걸리면 재생이 시작되기도 전에 취소된다.
+      // 그 경우 멈추는 일은 play() 가 끝난 뒤 onPlaying 이 맡는다.
+      if (soundLevel[name] === 0 && !t.audio.paused && !t.playPending) {
+        trace("트랙 정지 — " + name, "목표 볼륨이 0 이라 멈춘다");
+        t.audio.pause();
+      }
     }, fadeMs);
   });
 }
@@ -404,6 +476,9 @@ function setScreenAudio(state) {
     ? BREATH_VOLUME
     : 0;
 
+  trace("setScreenAudio(" + state + ")",
+    "빗소리 목표 " + soundLevel.rain + " / 호흡 목표 " + soundLevel.breath);
+
   applyAudio();
 }
 
@@ -415,6 +490,7 @@ function startRainPreroll() {
   if (rainStarted) return;
   rainStarted = true;
   soundLevel.rain = RAIN_VOLUME_IDLE;
+  trace("startRainPreroll", "빗소리 목표를 " + RAIN_VOLUME_IDLE + " 로");
   applyAudio();
 }
 
@@ -433,39 +509,82 @@ function resetAudio() {
   });
 }
 
-// 브라우저 자동재생 정책 : 첫 사용자 입력이 있어야 재생이 허용된다.
-// "화면을 눌러 시작하기" 의 터치가 그 입력이다. (startFromTap 에서 호출)
+// ===== 브라우저 자동재생 잠금 풀기 =====
 //
-// 중요 : 여기서 rain·breath 를 **둘 다** 풀어야 한다.
-// 잠금은 트랙(요소)마다 따로 걸린다. 첫 터치에서 빗소리만 재생하면
-// 호흡 소리 요소는 잠긴 채로 남고, 나중에 호흡 화면에서 처음 play() 할 때는
-// 그 순간 사용자 입력이 없으므로 NotAllowedError 로 막힌다.
-// 그래서 볼륨 0 으로 잠깐 재생해 잠금만 풀고 바로 멈춰 둔다.
-function unlockAudio() {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
+// 재생하려면 "사용자 입력" 이 있어야 한다. 그런데 어떤 이벤트가 사용자
+// 입력으로 인정되는지가 입력 장치마다 다르다. HTML 명세가 정한 목록은
+//   pointerdown — pointerType 이 "mouse" 일 때만 인정
+//   pointerup   — 마우스가 아닐 때(터치·펜) 인정
+//   touchend / keydown / click — 인정
+// 즉 **터치스크린에서 pointerdown 은 사용자 입력으로 치지 않는다.**
+//
+// 예전에는 startFromTap(pointerdown) 안에서 잠금을 풀었다. 마우스로는
+// 멀쩡히 됐지만 폰은 언제나 터치라 폰에서만 영영 안 풀렸다.
+// AudioContext 가 suspended 로 태어나고 play() 는 NotAllowedError 로 막혔다.
+// 화면은 정상이고 소리만 안 나서 원인을 찾기 어려웠다.
+//
+// 그래서 잠금 해제를 화면 전환에서 떼어내, 인정되는 이벤트에 모두 건다.
+// 여러 번 불려도 안전하고, 아직 안 풀렸으면 그다음 입력에서 다시 시도한다.
 
-  // 이 입력 안에서 만들어야 iOS 가 AudioContext 를 살려둔다
+// 잠금이 실제로 풀렸는가. audioUnlocked 플래그만으로는 모자란다 —
+// 시도는 했지만 브라우저가 거절했을 수 있다.
+function isAudioReady() {
+  if (!audioUnlocked) return false;
+  // 컨텍스트가 자고 있으면 audio 는 돌아도 소리가 안 나온다
+  if (audioCtx && audioCtx.state !== "running") return false;
+  // 나야 할 트랙이 멈춰 있으면 아직 안 풀린 것이다
+  return !Object.keys(SOUND).some((name) => {
+    const t = tracks[name];
+    return t && t.audio && !t.failed && soundLevel[name] > 0 && t.audio.paused;
+  });
+}
+
+function unlockAudio(reason) {
+  if (isAudioReady()) return;
+  trace("잠금 해제 시도", reason || "");
+
+  // 이 입력 안에서 만들어야 브라우저가 AudioContext 를 살려둔다
   routeThroughGain();
   resumeAudioCtx();
+  audioUnlocked = true;
 
   // tracks 가 아니라 SOUND 를 돈다. 트랙 하나가 안 만들어졌더라도
   // 그 사실이 로그에 남고 나머지는 그대로 풀린다.
+  //
+  // rain·breath 를 둘 다 풀어야 한다. 잠금은 트랙(요소)마다 따로 걸려서,
+  // 빗소리만 풀면 호흡 트랙은 잠긴 채 남고 나중에 호흡 화면에서 처음
+  // play() 할 때 그 순간 사용자 입력이 없어 막힌다.
   Object.keys(SOUND).forEach((name) => {
     const t = tracks[name];
     if (!t || !t.audio) {
       logAudioError(name, "잠금 해제", "트랙이 만들어지지 않았습니다 (buildTracks 확인)");
       return;
     }
-    setTrackVolume(t, 0);
+    // 이미 돌고 있는 트랙은 건드리지 않는다. 볼륨을 0 으로 되돌리면
+    // 들리던 소리가 끊긴다.
+    if (!t.audio.paused || t.playPending) return;
+
+    // 지금 필요 없는 트랙은 소리 없이 잠깐 재생해 잠금만 푼다
+    if (soundLevel[name] === 0) setTrackVolume(t, 0);
+
     playTrack(name, t, "unlockAudio 잠금 해제", () => {
-      // 지금 필요 없는 트랙은 잠금만 풀고 도로 멈춘다
-      if (soundLevel[name] === 0) t.audio.pause();
+      if (soundLevel[name] === 0) {
+        trace("트랙 정지 — " + name, "잠금만 풀고 도로 멈춘다");
+        t.audio.pause();
+      }
     });
   });
 
   applyAudio();
 }
+
+// 사용자 입력으로 인정되는 이벤트에 모두 건다.
+// 계속 붙여 둔다 — 한 번에 성공하지 못했을 때(첫 입력이 인정되지 않는
+// 종류였거나 컨텍스트가 다시 잠들었을 때) 다음 입력에서 저절로 회복된다.
+// isAudioReady() 가 true 면 곧바로 빠져나오므로 비용은 없다.
+["pointerup", "touchend", "click", "keydown"].forEach((type) => {
+  document.addEventListener(type, () => unlockAudio(type), { passive: true });
+});
 
 // 홈 화면 앱은 화면을 벗어났다 돌아오면 컨텍스트가 잠들어 있다
 document.addEventListener("visibilitychange", () => {
@@ -778,8 +897,16 @@ function renderTapStart() {
 // 빗소리 페이드는 화면 전환보다 길어서 HOME 에 도착한 뒤에도 계속 차오른다.
 function startFromTap() {
   if (currentState !== "TAP_TO_START") return;
-  unlockAudio();
+  trace("startFromTap", "화면을 눌러 시작");
+
+  // 순서가 중요하다. 목표 볼륨을 먼저 정해 두고 잠금을 푼다.
+  // 반대로 하면 잠금 해제 직후의 applyAudio 가 "빗소리 목표는 0" 인 상태로
+  // 돌면서 방금 재생한 트랙을 도로 멈춰버린다.
   startRainPreroll();
+
+  // 여기서 unlockAudio 를 부르지 않는다. 이 함수는 pointerdown 에서 오는데
+  // 터치에서는 pointerdown 이 사용자 입력으로 인정되지 않아 반드시 실패한다.
+  // 잠금 해제는 document 에 걸어둔 pointerup/touchend/click 이 맡는다.
   renderScreen("HOME");
 }
 
