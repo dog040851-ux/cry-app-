@@ -2,7 +2,7 @@
 //
 // 배포할 때마다 CACHE_VERSION 을 올려야 사용자가 새 파일을 받는다.
 // 이 값이 바뀌면 예전 캐시는 activate 단계에서 통째로 지워진다.
-const CACHE_VERSION = "v9";
+const CACHE_VERSION = "v10";
 const CORE_CACHE = "ulmong-core-" + CACHE_VERSION;
 const RUNTIME_CACHE = "ulmong-runtime-" + CACHE_VERSION;
 
@@ -47,11 +47,15 @@ const CORE_ASSETS = [
   "/assets/Ownglyph_positive-subset.woff2",
 ];
 
-// 소리 파일은 22MB 라 설치를 막지 않도록 나중에 따로 받는다.
+// 소리 파일은 8.6MB 라 설치를 막지 않도록 나중에 따로 받는다.
 // 한 번 재생되면 런타임 캐시에 남아 그다음부터는 오프라인에서도 들린다.
+//
+// ?v= 는 script.js 의 SOUND 와 반드시 같아야 한다. 다르면 서로 다른 주소가 되어
+// 여기서 미리 받아둔 것과 실제로 재생하는 것이 어긋나고, 미리 받기가 헛일이 된다.
+// (vercel.json 이 /sounds/ 를 immutable 로 캐시해서 이름만으로는 갱신이 안 된다.)
 const AUDIO_ASSETS = [
-  "/sounds/rain.mp3",
-  "/sounds/breath.mp3",
+  "/sounds/rain.mp3?v=2",
+  "/sounds/breath.mp3?v=2",
 ];
 
 // 온글잎은 13.8KB 서브셋이라 CORE_ASSETS 에 넣어 설치 때 같이 받는다.

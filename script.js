@@ -157,21 +157,39 @@ let refillDoneTimer = null;
 // 트랙마다 Audio 객체를 딱 하나만 만들어 두고 계속 쓴다.
 // 화면이 바뀌어도 새로 만들지 않으므로 소리가 끊기지 않는다.
 
-// 빗소리는 늘 깔려 있고, 누르고 있는 동안에만 조금 커진다.
-const RAIN_VOLUME_IDLE = 0.22;
-const RAIN_VOLUME_CRYING = 0.4;
+// ===== 볼륨 값이 뜻하는 것 =====
+// 두 mp3 는 파일 자체가 EBU R128 -23 LUFS 로 정규화돼 있다.
+// 정규화 후 실측 (ffmpeg loudnorm) :
+//   rain.mp3    -22.87 LUFS / -1.27 dBTP / LRA 1.6
+//   breath.mp3  -22.99 LUFS / -5.32 dBTP / LRA 11.7
+// 두 파일 차이가 0.12 dB 라 이제 같은 숫자를 넣으면 같은 크기로 들린다.
+// (예전에는 원본이 20.1 LU 나 차이 나서 트랙마다 값을 따로 맞춰야 했다.)
+//
+// 그래서 아래 값은 "기준(-23 LUFS)보다 몇 dB 아래로 낼 것인가" 만 뜻한다.
+// 계산식으로 만들지 않는다. 계산식은 파일을 바꾸면 조용히 틀어진다.
+//   1.00 =  0.0 dB → 약 -23   LUFS
+//   0.95 = -0.4 dB → 약 -23.4 LUFS
+//   0.56 = -5.0 dB → 약 -28   LUFS
+//
+// 빗소리는 늘 깔려 있고, 누르고 있는 동안에만 커진다.
+const RAIN_VOLUME_IDLE = 0.56;   // 평상시 빗소리 : -5.0 dB → 약 -28   LUFS
+const RAIN_VOLUME_CRYING = 1.0;  // 누르는 동안   :  0.0 dB → 약 -23   LUFS
+const BREATH_VOLUME = 0.95;      // 호흡 화면     : -0.4 dB → 약 -23.4 LUFS
 
-// 트랙마다 크기와 페이드 시간을 따로 정한다.
+// 트랙마다 페이드 시간을 따로 정한다.
 //   rain   : 켤 때는 스며들 듯 길게, 끌 때는 짧게.
 //            호흡 화면에 들어가면 빗소리가 곧바로 물러나야 한다.
 //   breath : 호흡 화면의 배경음. 들고 날 때 모두 1.5초.
-//
-// 참고 — 두 파일의 원래 크기가 크게 다르다 (ffmpeg ebur128 실측).
-//   빗소리 -37.8 LUFS / 호흡 -17.7 LUFS  → 호흡 파일이 20.1 LU 더 크다.
-// 그래서 같은 volume 값이라도 호흡이 훨씬 크게 들린다.
+// 주소 뒤의 ?v= 는 캐시를 깨기 위한 것이다. 지우지 말 것.
+// vercel.json 이 /sounds/ 에 max-age=31536000, immutable 을 걸어 두었다.
+// 파일 내용을 바꿔도 이름이 같으면 기존 사용자는 브라우저·CDN 캐시에서
+// 1년 동안 옛 파일을 계속 받는다 (서비스워커 CACHE_VERSION 을 올려도
+// 그 아래 HTTP 캐시 층까지는 비우지 못한다).
+// 소리 파일을 다시 만들 때마다 이 숫자를 올리고 sw.js 의 AUDIO_ASSETS 도 같이 맞춘다.
+// v2 : EBU R128 -23 LUFS 정규화
 const SOUND = {
-  rain:   { src: "sounds/rain.mp3",   volume: 0.4, fadeIn: 1800, fadeOut: 500 },
-  breath: { src: "sounds/breath.mp3", volume: 0.3, fadeIn: 1500, fadeOut: 1500 },
+  rain:   { src: "sounds/rain.mp3?v=2",   volume: RAIN_VOLUME_CRYING, fadeIn: 1800, fadeOut: 500 },
+  breath: { src: "sounds/breath.mp3?v=2", volume: BREATH_VOLUME,      fadeIn: 1500, fadeOut: 1500 },
 };
 
 const SOUND_FADE_MS = 1800; // 설정이 없을 때 쓰는 기본값
@@ -240,14 +258,71 @@ function resumeAudioCtx() {
   }
 }
 
+// ===== 소리가 안 날 때 원인을 찾기 위한 로그 =====
+// 소리는 조용히 실패한다. 화면은 멀쩡히 돌아가고 소리만 안 나서
+// 경로가 틀린 건지, 파일이 깨진 건지, 브라우저가 막은 건지 알 수가 없었다.
+// 그래서 실패한 지점마다 이유를 콘솔에 남긴다. 앱 동작은 막지 않는다.
+
+// HTMLMediaElement.error 의 code. 숫자만 봐서는 뜻을 알 수 없다.
+const MEDIA_ERROR_TEXT = {
+  1: "MEDIA_ERR_ABORTED — 내려받는 중에 중단됐습니다 (사용자나 스크립트가 멈춤)",
+  2: "MEDIA_ERR_NETWORK — 네트워크가 끊겨 받다가 실패했습니다",
+  3: "MEDIA_ERR_DECODE — 파일은 받았는데 소리로 풀지 못했습니다 (파일 손상 또는 지원하지 않는 인코딩)",
+  4: "MEDIA_ERR_SRC_NOT_SUPPORTED — 파일을 찾지 못했거나(404·경로 오류) 브라우저가 지원하지 않는 형식입니다",
+};
+
+function describeMediaError(mediaError) {
+  if (!mediaError) return "알 수 없는 오류 (error 객체가 비어 있음)";
+  const text = MEDIA_ERROR_TEXT[mediaError.code] || ("알 수 없는 code: " + mediaError.code);
+  // message 는 브라우저마다 있을 수도, 빈 문자열일 수도 있다
+  return mediaError.message ? text + " / " + mediaError.message : text;
+}
+
+function logAudioError(name, where, detail) {
+  console.error("[소리] " + name + " — " + where + " : " + detail);
+}
+
+// play() 는 거절돼도 예외를 던지지 않고 조용히 거절된 Promise 만 남긴다.
+// NotAllowedError 는 자동재생 차단(사용자 입력 없이 재생 시도),
+// NotSupportedError 는 소스 자체를 못 여는 경우다.
+function playTrack(name, t, where, onPlaying) {
+  if (!t || !t.audio) return;
+  let p;
+  try {
+    p = t.audio.play();
+  } catch (e) {
+    logAudioError(name, where + " play() 예외", e && e.message ? e.message : String(e));
+    return;
+  }
+  if (!p || !p.catch) { if (onPlaying) onPlaying(); return; } // Promise 를 안 돌려주는 옛 브라우저
+  if (onPlaying) p.then(onPlaying, () => {});
+  p.catch((e) => {
+    const kind = e && e.name ? e.name : "UnknownError";
+    let why = e && e.message ? e.message : "";
+    if (kind === "NotAllowedError") {
+      why = "브라우저가 자동재생을 막았습니다. 사용자가 화면을 누른 뒤에만 재생할 수 있습니다. " + why;
+    } else if (kind === "NotSupportedError") {
+      why = "소스를 열 수 없습니다. 경로(" + SOUND[name].src + ")와 파일 형식을 확인하세요. " + why;
+    }
+    logAudioError(name, where + " play() 거절 (" + kind + ")", why);
+  });
+}
+
 function buildTracks() {
   Object.keys(SOUND).forEach((name) => {
     const audio = new Audio(SOUND[name].src);
     audio.loop = true;
     audio.preload = "auto";
     audio.volume = 0;
-    // 파일을 못 읽어도 앱은 그대로 동작한다
-    audio.addEventListener("error", () => { tracks[name].failed = true; });
+    // 파일을 못 읽어도 앱은 그대로 동작한다. 대신 이유는 반드시 남긴다.
+    audio.addEventListener("error", () => {
+      tracks[name].failed = true;
+      logAudioError(
+        name,
+        "파일 읽기 실패 (" + SOUND[name].src + ")",
+        describeMediaError(audio.error)
+      );
+    });
     tracks[name] = { audio, gain: null, rafId: null, failed: false };
   });
 }
@@ -288,8 +363,7 @@ function applyAudio() {
     const target = isMuted ? 0 : level;
 
     if (level > 0 && t.audio.paused) {
-      const p = t.audio.play();
-      if (p && p.catch) p.catch(() => {});
+      playTrack(name, t, "applyAudio");
     }
 
     // 페이드 시간은 트랙마다 다르다 (SOUND 참고)
@@ -327,7 +401,7 @@ function setScreenAudio(state) {
   // 그대로 이어지고, 호흡이 끝나면(BREATH_DONE) 빠져나간다.
   // 두 상태가 한 화면을 쓰므로 그 사이에는 끊길 일이 없다.
   soundLevel.breath = state === "BREATH_INTRO" || state === "BREATHING"
-    ? SOUND.breath.volume
+    ? BREATH_VOLUME
     : 0;
 
   applyAudio();
@@ -361,6 +435,12 @@ function resetAudio() {
 
 // 브라우저 자동재생 정책 : 첫 사용자 입력이 있어야 재생이 허용된다.
 // "화면을 눌러 시작하기" 의 터치가 그 입력이다. (startFromTap 에서 호출)
+//
+// 중요 : 여기서 rain·breath 를 **둘 다** 풀어야 한다.
+// 잠금은 트랙(요소)마다 따로 걸린다. 첫 터치에서 빗소리만 재생하면
+// 호흡 소리 요소는 잠긴 채로 남고, 나중에 호흡 화면에서 처음 play() 할 때는
+// 그 순간 사용자 입력이 없으므로 NotAllowedError 로 막힌다.
+// 그래서 볼륨 0 으로 잠깐 재생해 잠금만 풀고 바로 멈춰 둔다.
 function unlockAudio() {
   if (audioUnlocked) return;
   audioUnlocked = true;
@@ -369,15 +449,21 @@ function unlockAudio() {
   routeThroughGain();
   resumeAudioCtx();
 
-  Object.keys(tracks).forEach((name) => {
+  // tracks 가 아니라 SOUND 를 돈다. 트랙 하나가 안 만들어졌더라도
+  // 그 사실이 로그에 남고 나머지는 그대로 풀린다.
+  Object.keys(SOUND).forEach((name) => {
     const t = tracks[name];
-    if (!t.audio) return;
-    setTrackVolume(t, 0);
-    const p = t.audio.play();
-    if (p && p.then) {
-      p.then(() => { if (soundLevel[name] === 0) t.audio.pause(); }).catch(() => {});
+    if (!t || !t.audio) {
+      logAudioError(name, "잠금 해제", "트랙이 만들어지지 않았습니다 (buildTracks 확인)");
+      return;
     }
+    setTrackVolume(t, 0);
+    playTrack(name, t, "unlockAudio 잠금 해제", () => {
+      // 지금 필요 없는 트랙은 잠금만 풀고 도로 멈춘다
+      if (soundLevel[name] === 0) t.audio.pause();
+    });
   });
+
   applyAudio();
 }
 
@@ -803,9 +889,46 @@ function startHeartRefill() {
 
 // ================= 누르기 =================
 
+// ===== 포인터 캡처 =====
+// 손가락이 버튼 밖으로 나가도 뗄 때까지 계속 우는 상태를 유지한다.
+//
+// 캡처를 버튼에 걸면 안 된다. 누르는 즉시 화면이 CRYING 으로 바뀌면서
+// 방금 누른 버튼(homeButton/releasedButton)이 화면에서 사라지는데,
+// 캡처를 가진 요소가 문서에서 빠지면 캡처도 그 자리에서 풀린다.
+// 그래서 어느 화면에서도 사라지지 않는 #app 이 포인터를 잡는다.
+// 캡처를 걸면 이후 그 포인터의 이벤트는 전부 #app 에서 나므로,
+// window 에 걸어둔 pointerup 은 그대로(버블링으로) 받는다.
+let capturedPointerId = null;
+
+function capturePointer(event) {
+  if (!appEl || typeof appEl.setPointerCapture !== "function") return;
+  if (event.pointerId === undefined) return;
+  try {
+    appEl.setPointerCapture(event.pointerId);
+    capturedPointerId = event.pointerId;
+  } catch (e) {
+    // 캡처에 실패해도 누르기 자체는 그대로 동작한다 (버튼 안에서만 유지)
+  }
+}
+
+function releasePointer() {
+  if (capturedPointerId === null) return;
+  const id = capturedPointerId;
+  capturedPointerId = null;
+  try {
+    if (appEl.hasPointerCapture && appEl.hasPointerCapture(id)) {
+      appEl.releasePointerCapture(id);
+    }
+  } catch (e) {
+    // 이미 풀렸으면 무시
+  }
+}
+
 function handlePressStart(event) {
   event.preventDefault();
   if (currentState !== "HOME") return;
+  // 화면이 바뀌기 전에 잡아 둔다
+  capturePointer(event);
   hasStartedCrying = true;
   cryPressStartTs = typeof event.timeStamp === "number" ? event.timeStamp : performance.now();
   renderScreen("CRYING");
@@ -815,7 +938,11 @@ function handlePressStart(event) {
 // 터치 기기에서 pointerup 에 preventDefault() 를 하면 뒤따르는 click 이 취소된다.
 // 그래서 상태를 먼저 확인하고, 우는 중일 때만 기본 동작을 막는다.
 // (먼저 막아버리면 상단 소리·속도 아이콘의 click 이 영영 오지 않는다.)
+//
+// 캡처 해제는 상태와 관계없이 먼저 한다. 상태 검사에 걸려 일찍 빠져나가면
+// 캡처가 남아 그다음 터치들이 전부 #app 으로 끌려간다.
 function handlePressEnd(event) {
+  releasePointer();
   if (currentState !== "CRYING") return;
   event.preventDefault();
   renderScreen("HOME");
@@ -825,10 +952,12 @@ function handlePressEnd(event) {
   el(id).addEventListener("pointerdown", handlePressStart);
 });
 
-// 누르는 순간 화면이 바뀌면서 방금 누른 버튼이 사라지므로 떼는 이벤트는 window 에서 받는다
+// 누르는 순간 화면이 바뀌면서 방금 누른 버튼이 사라지므로 떼는 이벤트는 window 에서 받는다.
+// 손을 떼는(pointerup) 것과 시스템이 끊는(pointercancel) 것, 이 둘로만 끝난다.
+// pointerleave 로는 끝내지 않는다 — 그게 있으면 손가락이 버튼 밖으로
+// 조금만 미끄러져도 울음이 멈춰버린다. 그래서 캡처를 쓰는 것이다.
 window.addEventListener("pointerup", handlePressEnd);
 window.addEventListener("pointercancel", handlePressEnd);
-el("cryingButton").addEventListener("pointerleave", handlePressEnd);
 
 ["homeButton", "releasedButton", "cryingButton"].forEach((id) => {
   el(id).addEventListener("contextmenu", (event) => event.preventDefault());
