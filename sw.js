@@ -2,7 +2,7 @@
 //
 // 배포할 때마다 CACHE_VERSION 을 올려야 사용자가 새 파일을 받는다.
 // 이 값이 바뀌면 예전 캐시는 activate 단계에서 통째로 지워진다.
-const CACHE_VERSION = "v12";
+const CACHE_VERSION = "v13";
 const CORE_CACHE = "ulmong-core-" + CACHE_VERSION;
 const RUNTIME_CACHE = "ulmong-runtime-" + CACHE_VERSION;
 

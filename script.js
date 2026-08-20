@@ -216,9 +216,25 @@ try {
   /* 시크릿 모드 등에서 localStorage 가 막혀 있어도 그냥 넘어간다 */
 }
 
+const dbg = { root: null, now: null, log: null, lines: [] };
+const DEBUG_LOG_MAX = 120;
+
+function dbgPush(text) {
+  if (!audioDebug) return;
+  const at = (performance.now() / 1000).toFixed(1);
+  dbg.lines.push(at + "s  " + text);
+  if (dbg.lines.length > DEBUG_LOG_MAX) dbg.lines.shift();
+  if (dbg.log) {
+    dbg.log.textContent = dbg.lines.join("\n");
+    dbg.log.scrollTop = dbg.log.scrollHeight;
+  }
+}
+
 function trace(where, detail) {
   if (!audioDebug) return;
-  console.log("[소리·추적] " + where + (detail ? " : " + detail : ""));
+  const line = where + (detail ? " : " + detail : "");
+  console.log("[소리·추적] " + line);
+  dbgPush(line);
 }
 
 // 지금 트랙들이 어떤 상태인지 한 줄로
@@ -275,10 +291,24 @@ function routeThroughGain() {
     try {
       const source = audioCtx.createMediaElementSource(t.audio);
       const gain = audioCtx.createGain();
-      gain.gain.value = t.audio.volume;
+      gain.gain.value = t.audio.volume; // 지금까지의 볼륨을 그대로 이어받는다
       source.connect(gain);
       gain.connect(audioCtx.destination);
       t.gain = gain;
+
+      // ===== 여기를 지우면 안드로이드에서 소리가 완전히 사라진다 =====
+      // 크롬은 요소의 volume 을 그래프에 들어가기 "전" 에 곱한다.
+      // buildTracks 가 넣어둔 volume=0 을 그대로 두면 그다음부터는
+      // gain 을 아무리 올려도 0 × n = 0 이라 영원히 무음이다.
+      // paused 는 false, currentTime 도 정상으로 흐르고 state 도 running 이라
+      // 겉으로는 멀쩡해 보인다. 그래서 찾기 어려웠다.
+      //
+      // 아이폰 사파리는 volume 을 아예 무시해서(그래서 GainNode 를 쓴다)
+      // 이 줄이 없어도 들렸다. 안드로이드에서만 안 나던 이유가 이것이다.
+      //
+      // 연결된 뒤로 요소는 소리를 그냥 통과시키기만 하고,
+      // 볼륨은 오직 GainNode 하나가 맡는다.
+      t.audio.volume = 1;
     } catch (e) {
       /* 이 트랙만 예전 방식으로 둔다 */
     }
@@ -322,7 +352,9 @@ function describeMediaError(mediaError) {
 }
 
 function logAudioError(name, where, detail) {
-  console.error("[소리] " + name + " — " + where + " : " + detail);
+  const line = name + " — " + where + " : " + detail;
+  console.error("[소리] " + line);
+  dbgPush("!! " + line);
 }
 
 // play() 는 거절돼도 예외를 던지지 않고 조용히 거절된 Promise 만 남긴다.
@@ -590,6 +622,129 @@ function unlockAudio(reason) {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && audioUnlocked) resumeAudioCtx();
 });
+
+// ===== 화면에 띄우는 소리 로그 (?audiodebug=1) =====
+//
+// 안드로이드 폰은 콘솔을 볼 수가 없다. USB 디버깅을 붙이지 않으면
+// console.log 는 아무 데도 남지 않는다. 그래서 화면에 직접 띄운다.
+//
+// 이 패널은 pointer-events: none 이라 손가락이 그대로 앱까지 통과한다.
+// 로그를 띄운 채로 평소처럼 눌러 봐야 원인이 보이기 때문이다.
+// (윗줄 막대만 눌린다 — 접기·복사)
+// 지금 이 순간의 상태. 소리가 안 날 때 어디가 0 인지 한눈에 보라고 만든 것이다.
+function dbgSnapshot() {
+  const rows = [];
+  const ctx = audioCtx
+    ? audioCtx.state + "  " + audioCtx.sampleRate + "Hz  t=" + audioCtx.currentTime.toFixed(1)
+    : "없음 (아직 안 만듦)";
+  rows.push("AudioContext : " + ctx);
+  rows.push("잠금         : audioUnlocked=" + audioUnlocked + "  준비됨=" + isAudioReady());
+
+  const ua = navigator.userActivation;
+  rows.push("사용자입력   : " + (ua ? "지금=" + ua.isActive + "  이전에=" + ua.hasBeenActive : "userActivation 없음"));
+
+  const standalone =
+    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+    window.navigator.standalone === true;
+  rows.push("표시모드     : " + (standalone ? "standalone (설치된 앱)" : "브라우저 탭"));
+  rows.push("음소거       : " + (isMuted ? "켜짐" : "꺼짐") + "   화면=" + currentState);
+
+  Object.keys(SOUND).forEach((name) => {
+    const t = tracks[name];
+    if (!t || !t.audio) { rows.push(name.padEnd(7) + ": 트랙 없음"); return; }
+    const a = t.audio;
+    rows.push(
+      name.padEnd(7) + ": " + (a.paused ? "멈춤  " : "재생중") +
+      "  목표 " + soundLevel[name].toFixed(2) +
+      "  gain " + (t.gain ? t.gain.gain.value.toFixed(3) : "없음 ") +
+      "  el.volume " + a.volume.toFixed(2) +
+      (a.muted ? " (muted)" : "")
+    );
+    rows.push(
+      "         t=" + a.currentTime.toFixed(1) +
+      "  ready=" + a.readyState + "  net=" + a.networkState +
+      (t.failed ? "  [읽기 실패]" : "") +
+      (t.playPending ? "  [재생 요청 처리중]" : "") +
+      (a.error ? "\n         오류 " + describeMediaError(a.error) : "")
+    );
+  });
+
+  // el.volume 이 0 인데 gain 이 있으면 크롬에서는 소리가 절대 안 난다.
+  // 이번 버그가 정확히 그것이었다. 눈에 띄게 따로 적어 준다.
+  const muteBug = Object.keys(SOUND).some((name) => {
+    const t = tracks[name];
+    return t && t.audio && t.gain && t.audio.volume === 0;
+  });
+  if (muteBug) rows.push("!! el.volume 이 0 이다 — 크롬은 이걸 그래프 앞에서 곱한다. 무조건 무음.");
+
+  return rows.join("\n");
+}
+
+function buildAudioDebugPanel() {
+  if (!audioDebug || dbg.root) return;
+
+  const root = document.createElement("div");
+  root.className = "audiodbg";
+
+  const bar = document.createElement("div");
+  bar.className = "audiodbg__bar";
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "audiodbg__btn";
+  toggle.textContent = "소리 로그 접기";
+  toggle.addEventListener("click", () => {
+    const off = root.dataset.collapsed === "true";
+    root.dataset.collapsed = off ? "false" : "true";
+    toggle.textContent = off ? "소리 로그 접기" : "소리 로그 펴기";
+  });
+
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "audiodbg__btn";
+  copy.textContent = "복사";
+  copy.addEventListener("click", () => {
+    const text = dbgSnapshot() + "\n\n" + dbg.lines.join("\n") + "\n\nUA: " + navigator.userAgent;
+    const done = () => { copy.textContent = "복사됨"; setTimeout(() => { copy.textContent = "복사"; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, () => { copy.textContent = "복사 실패"; });
+    } else {
+      copy.textContent = "복사 안 됨";
+    }
+  });
+
+  bar.appendChild(toggle);
+  bar.appendChild(copy);
+
+  dbg.now = document.createElement("pre");
+  dbg.now.className = "audiodbg__now";
+
+  dbg.log = document.createElement("pre");
+  dbg.log.className = "audiodbg__log";
+
+  root.appendChild(bar);
+  root.appendChild(dbg.now);
+  root.appendChild(dbg.log);
+  document.body.appendChild(root);
+  dbg.root = root;
+
+  // 상태는 계속 바뀐다. 페이드가 도는 것도 보여야 해서 자주 고쳐 그린다.
+  setInterval(() => { dbg.now.textContent = dbgSnapshot(); }, 250);
+
+  // 소리와 무관한 오류도 소리를 멈추게 할 수 있다. 같이 띄운다.
+  window.addEventListener("error", (e) => dbgPush("!! 오류 " + e.message + " (" + (e.filename || "").split("/").pop() + ":" + e.lineno + ")"));
+  window.addEventListener("unhandledrejection", (e) => dbgPush("!! 처리 안 된 거절 " + ((e.reason && e.reason.message) || e.reason)));
+
+  dbgPush("소리 로그 시작 — " + navigator.userAgent);
+}
+
+if (audioDebug) {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", buildAudioDebugPanel);
+  } else {
+    buildAudioDebugPanel();
+  }
+}
 
 // ================= DOM =================
 
