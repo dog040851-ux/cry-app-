@@ -200,6 +200,9 @@ const easeVolume = (p) => p * p * (3 - 2 * p);
 const tracks = {};
 let isMuted = false;
 let audioUnlocked = false;
+// 앱이 화면에서 벗어나 소리를 내려둔 상태인가. 실제 처리는 파일 맨 아래에 있다.
+// (선언만 여기에 둔다 — dbgSnapshot 이 이 값을 읽는다)
+let inBackground = false;
 // 트랙별 목표 볼륨. 0 이면 꺼진 것으로 본다. (음소거와 별개)
 const soundLevel = { rain: 0, breath: 0 };
 
@@ -443,7 +446,9 @@ function fadeTo(name, target, onDone, durationMs) {
 
 // 음소거 중에도 오디오는 계속 돌고 volume 만 0 이다.
 // 그래야 다시 켰을 때 처음부터가 아니라 이어서 들린다.
-function applyAudio() {
+// fadeMsOverride 를 주면 트랙별 페이드 시간 대신 그 값을 쓴다.
+// 백그라운드에서 돌아올 때처럼 짧게 되살려야 하는 경우에만 쓴다.
+function applyAudio(fadeMsOverride) {
   if (!audioUnlocked) {
     trace("applyAudio 건너뜀", "아직 잠금이 안 풀렸다 (audioUnlocked=false)");
     return;
@@ -465,9 +470,10 @@ function applyAudio() {
     // 페이드 시간은 트랙마다 다르다 (SOUND 참고)
     const cfg = SOUND[name];
     const fadeMs =
-      target < trackVolume(t)
+      fadeMsOverride ||
+      (target < trackVolume(t)
         ? cfg.fadeOut || SOUND_FADE_MS
-        : cfg.fadeIn || SOUND_FADE_MS;
+        : cfg.fadeIn || SOUND_FADE_MS);
 
     fadeTo(name, target, () => {
       // 이 트랙이 필요 없어졌을 때만 멈춘다. 음소거는 멈추지 않는다.
@@ -484,7 +490,7 @@ function applyAudio() {
   });
 }
 
-function setScreenAudio(state) {
+function setScreenAudio(state, fadeMsOverride) {
   const onBreath =
     state === "BREATH_INTRO" || state === "BREATHING" || state === "BREATH_DONE";
 
@@ -511,7 +517,7 @@ function setScreenAudio(state) {
   trace("setScreenAudio(" + state + ")",
     "빗소리 목표 " + soundLevel.rain + " / 호흡 목표 " + soundLevel.breath);
 
-  applyAudio();
+  applyAudio(fadeMsOverride);
 }
 
 // "화면을 눌러 시작하기" 를 누른 순간 빗소리를 0 에서부터 올리기 시작한다.
@@ -618,10 +624,9 @@ function unlockAudio(reason) {
   document.addEventListener(type, () => unlockAudio(type), { passive: true });
 });
 
-// 홈 화면 앱은 화면을 벗어났다 돌아오면 컨텍스트가 잠들어 있다
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && audioUnlocked) resumeAudioCtx();
-});
+// 화면을 벗어났다 돌아왔을 때의 처리는 파일 맨 아래
+// "앱이 화면에서 벗어났을 때" 에 모아 두었다. 소리뿐 아니라 호흡 사이클까지
+// 같이 멈춰야 해서, 상태 변수들이 다 선언된 뒤라야 한다.
 
 // ===== 화면에 띄우는 소리 로그 (?audiodebug=1) =====
 //
@@ -648,6 +653,10 @@ function dbgSnapshot() {
     window.navigator.standalone === true;
   rows.push("표시모드     : " + (standalone ? "standalone (설치된 앱)" : "브라우저 탭"));
   rows.push("음소거       : " + (isMuted ? "켜짐" : "꺼짐") + "   화면=" + currentState);
+  rows.push(
+    "백그라운드   : " + (inBackground ? "나가 있음 (소리 내림)" : "앱 안") +
+    "   visibility=" + document.visibilityState
+  );
 
   Object.keys(SOUND).forEach((name) => {
     const t = tracks[name];
@@ -1350,6 +1359,14 @@ function renderBreathing() {
   el("breathingGaugeLabel").textContent = text.gaugeLabel;
   el("breathingCircleLabel").textContent = text.circleLabel;
 
+  warmPercent = 0;
+  restartBreathCycle();
+}
+
+// 들이쉬기부터 다시 시작한다. 온기(warmPercent)는 건드리지 않는다 —
+// 처음 시작할 때는 renderBreathing 이 이미 0 으로 맞춰 두고,
+// 백그라운드에서 돌아올 때는 나가기 전 값을 그대로 이어야 하기 때문이다.
+function restartBreathCycle() {
   // 화면 전환이 끝나기를 기다리지 않는다. 페이드가 도는 동안 이미 첫 들이쉬기가
   // 진행 중이어야 멈칫하는 구간이 생기지 않는다. 그래서 여기서 바로 사이클을 시작한다.
   const circle = el("breathingCircle");
@@ -1369,7 +1386,6 @@ function renderBreathing() {
   circle.style.transition = "";
   mouth.style.transition = "";
 
-  warmPercent = 0;
   startWarmRise();
   runBreathStep(0);
 }
@@ -1640,6 +1656,214 @@ if (window.visualViewport) {
 // 아이폰 사파리는 처음 몇 백 ms 동안 툴바 높이가 확정되지 않아
 // 로드 직후의 값이 실제와 다르다. 잠깐씩 다시 재어 맞춘다.
 [120, 400, 900, 1800].forEach((ms) => setTimeout(fitApp, ms));
+
+// ================= 앱이 화면에서 벗어났을 때 =================
+//
+// 다른 앱으로 넘어가거나, 홈 버튼을 누르거나, 화면이 꺼지면 소리를 내린다.
+// 돌아오면 나가기 전 화면에 맞는 소리를 그대로 되살린다.
+//
+// ===== 왜 requestAnimationFrame 으로 페이드를 못 거는가 =====
+// 화면이 숨는 순간 브라우저는 rAF 를 그 자리에서 멈춘다.
+// fadeTo 로 볼륨을 내리면 다음 콜백이 영영 오지 않아서 볼륨이 중간에
+// 멈춘 채로 남고, 소리는 백그라운드에서 계속 난다. 정확히 지금 고치려는 증상이다.
+// 그래서 나갈 때의 페이드는 GainNode 의 AudioParam 자동화로 건다.
+// 자동화는 오디오 스레드가 돌리므로 화면이 숨어도 끝까지 간다.
+// (돌아올 때는 rAF 가 다시 도니까 평소의 fadeTo 를 그대로 쓴다.)
+
+const BACKGROUND_FADE_MS = 300;
+let bgPauseTimer = null;
+let bgCheckTimer = null;
+// 호흡 사이클을 멈춰 둔 상태인가
+let bgFrozenState = null;
+
+// AudioParam 에 자동화가 걸린 채로 두면 fadeTo 가 넣는 값과 서로 덮어쓴다.
+// 돌아올 때 예약을 지우고 지금 값에서 다시 출발시킨다.
+function clearGainAutomation(t) {
+  if (!t || !t.gain || !audioCtx) return;
+  const now = audioCtx.currentTime;
+  const v = t.gain.gain.value;
+  try {
+    t.gain.gain.cancelScheduledValues(now);
+    t.gain.gain.setValueAtTime(v, now);
+  } catch (e) {
+    /* 자동화가 없으면 그냥 넘어간다 */
+  }
+}
+
+// 볼륨이 0 으로 다 내려간 뒤에 요소를 멈춘다.
+// 숨은 뒤의 setTimeout 은 1 초 단위로 느려질 수 있지만, 그때는 이미
+// 무음이라 늦어도 들리는 차이가 없다.
+function pauseTracksForBackground() {
+  bgPauseTimer = null;
+  let pending = false;
+
+  Object.keys(SOUND).forEach((name) => {
+    const t = tracks[name];
+    if (!t || !t.audio) return;
+
+    // 재생 요청이 아직 처리 중이면 지금 멈출 수 없다. 멈추면 그 play() 가
+    // 통째로 취소되어(AbortError) 잠금이 안 풀린 것으로 남는다.
+    if (t.playPending) { pending = true; return; }
+
+    if (!t.audio.paused) {
+      t.audio.pause();
+      trace("백그라운드 정지 — " + name, "t=" + t.audio.currentTime.toFixed(1));
+    }
+    // 컨텍스트가 잠들어 램프가 끝까지 못 갔을 수 있다. 예약을 지우고 0 으로 못 박는다.
+    clearGainAutomation(t);
+    setTrackVolume(t, 0);
+  });
+
+  if (pending) bgPauseTimer = setTimeout(pauseTracksForBackground, 200);
+}
+
+// ===== 화면 상태도 같이 멈춘다 =====
+//
+// 우는 중 : 손을 뗀 것으로 본다. 백그라운드에서는 버튼을 누르고 있을 수
+//   없으므로 계속 우는 상태로 두면 앞뒤가 맞지 않는다. 하트는 지금까지
+//   줄어든 만큼 그대로 남고, 돌아오면 HOME 에서 다시 누르면 된다.
+//   (하트가 저절로 줄지는 않는다 — rAF 라 숨는 즉시 멈춘다.)
+//
+// 호흡 중 : 사이클을 멈춘다. 단계 전환은 setTimeout 이라 숨어도 계속 돌지만
+//   온기 게이지는 rAF 라 멈춘다. 그냥 두면 게이지는 그대로인데 들숨·날숨만
+//   혼자 몇 바퀴 돌아, 돌아왔을 때 아무 데서나 이어진다.
+function freezeScreenForBackground() {
+  bgFrozenState = null;
+
+  if (currentState === "CRYING") {
+    releasePointer();
+    pressActive = false;
+    rearmAt = performance.now() + REARM_AFTER_RELEASE_MS;
+    trace("백그라운드 — 울기 중단", "하트 " + Math.round(heartPercent) + "% 로 HOME 복귀");
+    renderScreen("HOME"); // clearAllTimers 가 타이머를 전부 정리한다
+    return;
+  }
+
+  if (currentState === "BREATH_INTRO" || currentState === "BREATHING") {
+    bgFrozenState = currentState;
+    if (breathStepTimer) { clearTimeout(breathStepTimer); breathStepTimer = null; }
+    if (warmRafId) { cancelAnimationFrame(warmRafId); warmRafId = null; }
+    warmLastTs = null;
+    blobTimers.forEach(clearTimeout);
+    blobTimers = [];
+    // 날아가던 덩어리는 지운다. 두면 허공에 멈춘 채로 남는다.
+    document.querySelectorAll(".breath__emit").forEach((n) => { n.innerHTML = ""; });
+    trace("백그라운드 — 호흡 멈춤", bgFrozenState + " / 온기 " + Math.round(warmPercent) + "%");
+  }
+}
+
+function thawScreenAfterBackground() {
+  const was = bgFrozenState;
+  bgFrozenState = null;
+  if (!was || currentState !== was) return;
+
+  if (was === "BREATH_INTRO") {
+    // 준비 화면은 통째로 다시 튼다. 3.2 초짜리라 이어 붙일 것이 없다.
+    renderScreen("BREATH_INTRO");
+    return;
+  }
+
+  // 온기는 나가기 전 값 그대로 두고, 호흡만 들이쉬기부터 다시 시작한다.
+  // 반쯤 들이쉬던 중간에 이어 붙이면 따라 쉴 수가 없다.
+  trace("복귀 — 호흡 재시작", "온기 " + Math.round(warmPercent) + "% 에서 들이쉬기부터");
+  restartBreathCycle();
+}
+
+function goBackground(reason) {
+  if (inBackground) return;
+  inBackground = true;
+  trace("백그라운드 진입", reason);
+
+  if (bgCheckTimer) { clearTimeout(bgCheckTimer); bgCheckTimer = null; }
+
+  // 화면부터 정리한다. renderScreen 이 소리 목표를 다시 정할 수 있으므로
+  // 볼륨을 내리는 것은 그다음이어야 한다.
+  freezeScreenForBackground();
+
+  Object.keys(SOUND).forEach((name) => {
+    const t = tracks[name];
+    if (!t || !t.audio) return;
+
+    // 도는 중이던 rAF 페이드는 어차피 멈춘다. 핸들만 정리한다.
+    if (t.rafId) { cancelAnimationFrame(t.rafId); t.rafId = null; }
+
+    if (t.gain && audioCtx) {
+      const now = audioCtx.currentTime;
+      try {
+        t.gain.gain.cancelScheduledValues(now);
+        t.gain.gain.setValueAtTime(t.gain.gain.value, now);
+        t.gain.gain.linearRampToValueAtTime(0, now + BACKGROUND_FADE_MS / 1000);
+      } catch (e) {
+        setTrackVolume(t, 0);
+      }
+    } else {
+      // GainNode 를 못 쓰는 환경. 페이드 없이 곧바로 내린다.
+      setTrackVolume(t, 0);
+    }
+  });
+
+  if (bgPauseTimer) clearTimeout(bgPauseTimer);
+  bgPauseTimer = setTimeout(pauseTracksForBackground, BACKGROUND_FADE_MS + 60);
+}
+
+function goForeground(reason) {
+  if (!inBackground) return;
+  inBackground = false;
+  trace("포그라운드 복귀", reason + " / 화면 " + currentState);
+
+  if (bgPauseTimer) { clearTimeout(bgPauseTimer); bgPauseTimer = null; }
+
+  // 예약된 자동화를 지우고 0 에서 다시 올라가게 맞춘다
+  Object.keys(SOUND).forEach((name) => {
+    const t = tracks[name];
+    if (!t || !t.audio) return;
+    clearGainAutomation(t);
+    setTrackVolume(t, 0);
+  });
+
+  // ===== 돌아올 때 잠금이 다시 필요한가 =====
+  // 크롬(안드로이드) : 필요 없다. 한 번 누른 문서는 그 문서가 살아 있는 동안
+  //   계속 "사용자 입력이 있었던" 것으로 남는다(sticky activation).
+  //   play() 도 resume() 도 그대로 통과한다.
+  // 사파리(iOS) : 백그라운드로 가면 AudioContext 를 재워 버린다. 돌아와서
+  //   resume() 을 부르면 대개 풀리지만 항상은 아니다. 그래서
+  //   ① 여기서 먼저 resume 을 시도하고
+  //   ② 실패하면 pointerup/touchend/click 에 걸어 둔 unlockAudio 가
+  //      그다음 터치에서 저절로 회복시킨다 (isAudioReady() 가 false 라 다시 돈다).
+  resumeAudioCtx();
+
+  // 음소거였다면 applyAudio 가 목표를 0 으로 잡으므로 그대로 음소거가 유지된다.
+  setScreenAudio(currentState, BACKGROUND_FADE_MS);
+
+  thawScreenAfterBackground();
+
+  // 그래도 안 살아났으면 화면 로그에 남긴다. 폰에서 눈으로 확인할 수 있게.
+  if (bgCheckTimer) clearTimeout(bgCheckTimer);
+  bgCheckTimer = setTimeout(() => {
+    bgCheckTimer = null;
+    if (!audioUnlocked || inBackground) return;
+    if (isAudioReady()) { trace("복귀 확인", "소리 정상 — " + trackSummary()); return; }
+    logAudioError(
+      "복귀",
+      "소리가 되살아나지 않았습니다",
+      "화면을 한 번 누르면 다시 풀립니다. " + trackSummary() +
+        " / AudioContext=" + (audioCtx ? audioCtx.state : "없음")
+    );
+  }, 800);
+}
+
+// visibilitychange 하나면 안드로이드는 다 잡힌다 (앱 전환·홈·화면 끄기 모두).
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) goBackground("visibilitychange");
+  else goForeground("visibilitychange");
+});
+
+// iOS 사파리 대응. 페이지를 bfcache 에 넣을 때는 visibilitychange 없이
+// pagehide 만 오는 경우가 있어서 같이 건다. 둘 다 와도 안쪽에서 한 번만 돈다.
+window.addEventListener("pagehide", () => goBackground("pagehide"));
+window.addEventListener("pageshow", (e) => {
+  goForeground("pageshow" + (e && e.persisted ? " (bfcache 복원)" : ""));
+});
 
 // ================= 시작 =================
 
