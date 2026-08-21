@@ -146,6 +146,11 @@ let cryLastTs = null;
 let cryPressStartTs = null;
 let cryMessageTimer = null;
 let breathStepTimer = null;
+// 지금 어느 단계를 언제부터 하고 있는가. 백그라운드에서 돌아왔을 때
+// 나간 지점부터 이어 붙이려면 이 둘이 있어야 한다.
+let breathStepIndex = 0;
+let breathStepStartTs = null;
+let breathIntroStartTs = null;
 let warmRafId = null;
 let warmLastTs = null;
 let blobTimers = [];
@@ -160,9 +165,9 @@ let refillDoneTimer = null;
 // ===== 볼륨 값이 뜻하는 것 =====
 // 두 mp3 는 파일 자체가 EBU R128 -23 LUFS 로 정규화돼 있다.
 // 정규화 후 실측 (ffmpeg loudnorm) :
-//   rain.mp3    -22.87 LUFS / -1.27 dBTP / LRA 1.6
-//   breath.mp3  -22.99 LUFS / -5.32 dBTP / LRA 11.7
-// 두 파일 차이가 0.12 dB 라 이제 같은 숫자를 넣으면 같은 크기로 들린다.
+//   rain.mp3    -23.39 LUFS / -0.80 dBTP / LRA 1.6  / 467.590s
+//   breath.mp3  -23.44 LUFS / -4.76 dBTP / LRA 9.8  / 248.450s
+// 두 파일 차이가 0.05 dB 라 이제 같은 숫자를 넣으면 같은 크기로 들린다.
 // (예전에는 원본이 20.1 LU 나 차이 나서 트랙마다 값을 따로 맞춰야 했다.)
 //
 // 그래서 아래 값은 "기준(-23 LUFS)보다 몇 dB 아래로 낼 것인가" 만 뜻한다.
@@ -187,9 +192,25 @@ const BREATH_VOLUME = 0.95;      // 호흡 화면     : -0.4 dB → 약 -23.4 LU
 // 그 아래 HTTP 캐시 층까지는 비우지 못한다).
 // 소리 파일을 다시 만들 때마다 이 숫자를 올리고 sw.js 의 AUDIO_ASSETS 도 같이 맞춘다.
 // v2 : EBU R128 -23 LUFS 정규화
+//
+// ===== v3 : 앞뒤 무음을 잘라내 loop 이음새를 없앴다 =====
+// loop=true 는 파일이 끝나면 곧바로 처음으로 돌아간다. 그래서 파일 앞뒤에
+// 무음이 있으면 그 둘이 이어져 "뚝 끊겼다가 다시 들리는" 구간이 된다.
+// 실측한 무음 (브라우저에서 이음새 전후 출력을 재서 확인) :
+//   rain   앞 204ms + 뒤 8ms   = 212ms  → 7분 48초마다 한 번
+//   breath 앞 23ms + 뒤 625ms  = 648ms  → 4분 9초마다 한 번
+// 원본(sounds/original)에도 그대로 있던 무음이다. 정규화가 만든 것이 아니다.
+//
+// 원본에서 그 구간을 잘라내고 다시 정규화했다. breath 는 끝의 2초짜리
+// 페이드아웃까지 걷어냈다 (그대로 두면 소리가 잦아들다 갑자기 커진다).
+// 다시 만든 뒤 실측 : rain 이음새 무음 0ms, breath 10ms (들리지 않는다).
+//
+// mp3 를 다시 만들 때는 반드시 앞뒤 무음부터 확인할 것.
+// mp3 인코더는 앞에 20ms 안팎의 여백을 자동으로 붙이는데, 크롬은 LAME
+// 갭리스 태그를 읽어 그건 알아서 건너뛴다. 문제가 되는 것은 "내용" 의 무음이다.
 const SOUND = {
-  rain:   { src: "sounds/rain.mp3?v=2",   volume: RAIN_VOLUME_CRYING, fadeIn: 1800, fadeOut: 500 },
-  breath: { src: "sounds/breath.mp3?v=2", volume: BREATH_VOLUME,      fadeIn: 1500, fadeOut: 1500 },
+  rain:   { src: "sounds/rain.mp3?v=3",   volume: RAIN_VOLUME_CRYING, fadeIn: 1800, fadeOut: 500 },
+  breath: { src: "sounds/breath.mp3?v=3", volume: BREATH_VOLUME,      fadeIn: 1500, fadeOut: 1500 },
 };
 
 const SOUND_FADE_MS = 1800; // 설정이 없을 때 쓰는 기본값
@@ -208,18 +229,29 @@ const soundLevel = { rain: 0, breath: 0 };
 
 // ===== 소리 흐름 추적 =====
 // 소리가 안 날 때 어느 지점에서 끊겼는지 보려면 켠다. 평소에는 조용하다.
-//   주소 뒤에 ?audiodebug=1 을 붙이거나
-//   콘솔에서 localStorage.ulmongAudioDebug = "1" 한 뒤 새로고침
+//
+// ===== 켜고 끄는 방법은 주소 하나뿐이다 =====
+//   켜기 : 주소 뒤에 ?audiodebug=1
+//   끄기 : 그 부분을 지우고 다시 접속하거나, 패널의 "끄기" 를 누른다
+//
+// 예전에는 localStorage 로도 켤 수 있게 해뒀다. 그런데 그렇게 켜면 주소를
+// 지워도 값이 남아 계속 따라다닌다. 껐다고 생각한 뒤에도 패널이 그대로
+// 뜨는데 주소에는 아무것도 없으니 왜 뜨는지 알 수가 없다.
+// 그래서 주소에 있을 때만 켜고, 예전에 남아 있던 값은 지워 버린다.
 let audioDebug = false;
 try {
-  audioDebug =
-    location.search.indexOf("audiodebug=1") !== -1 ||
-    localStorage.getItem("ulmongAudioDebug") === "1";
+  audioDebug = new URLSearchParams(location.search).get("audiodebug") === "1";
+} catch (e) {
+  audioDebug = location.search.indexOf("audiodebug=1") !== -1;
+}
+try {
+  // 예전 방식으로 켜 둔 것이 있으면 여기서 정리한다. 다시는 이걸로 안 켜진다.
+  localStorage.removeItem("ulmongAudioDebug");
 } catch (e) {
   /* 시크릿 모드 등에서 localStorage 가 막혀 있어도 그냥 넘어간다 */
 }
 
-const dbg = { root: null, now: null, log: null, lines: [] };
+const dbg = { root: null, now: null, log: null, lines: [], timer: null };
 const DEBUG_LOG_MAX = 120;
 
 function dbgPush(text) {
@@ -722,8 +754,32 @@ function buildAudioDebugPanel() {
     }
   });
 
+  // 설치한 앱에는 주소창이 없어서 ?audiodebug=1 을 손으로 지울 수가 없다.
+  // 그래서 화면에서 끌 수 있게 해 둔다. 주소에서도 같이 지우므로
+  // 새로고침해도 다시 뜨지 않는다.
+  const off = document.createElement("button");
+  off.type = "button";
+  off.className = "audiodbg__btn";
+  off.textContent = "끄기";
+  off.addEventListener("click", () => {
+    audioDebug = false; // trace·dbgPush 가 여기서부터 아무것도 안 한다
+    if (dbg.timer) { clearInterval(dbg.timer); dbg.timer = null; }
+    root.remove();
+    dbg.root = null;
+    dbg.now = null;
+    dbg.log = null;
+    try {
+      const u = new URL(location.href);
+      u.searchParams.delete("audiodebug");
+      history.replaceState(null, "", u.pathname + u.search + u.hash);
+    } catch (e) {
+      /* 주소를 못 고쳐도 패널은 이미 사라졌다 */
+    }
+  });
+
   bar.appendChild(toggle);
   bar.appendChild(copy);
+  bar.appendChild(off);
 
   dbg.now = document.createElement("pre");
   dbg.now.className = "audiodbg__now";
@@ -738,7 +794,7 @@ function buildAudioDebugPanel() {
   dbg.root = root;
 
   // 상태는 계속 바뀐다. 페이드가 도는 것도 보여야 해서 자주 고쳐 그린다.
-  setInterval(() => { dbg.now.textContent = dbgSnapshot(); }, 250);
+  dbg.timer = setInterval(() => { dbg.now.textContent = dbgSnapshot(); }, 250);
 
   // 소리와 무관한 오류도 소리를 멈추게 할 수 있다. 같이 띄운다.
   window.addEventListener("error", (e) => dbgPush("!! 오류 " + e.message + " (" + (e.filename || "").split("/").pop() + ":" + e.lineno + ")"));
@@ -1328,11 +1384,18 @@ function renderBreathIntro() {
   circle.style.transition = "";
   mouth.style.transition = "";
 
+  startBreathIntroWait(BREATH_INTRO_MS);
+}
+
+// 준비 화면에서 호흡이 시작되기까지 기다리는 시간.
+// 백그라운드에서 돌아왔을 때 남은 시간만 다시 걸 수 있게 따로 뺐다.
+function startBreathIntroWait(remainMs) {
+  breathIntroStartTs = performance.now() - (BREATH_INTRO_MS - remainMs);
   breathStepTimer = setTimeout(() => {
     if (currentState !== "BREATH_INTRO") return;
     breathSetIndex = 0;
     renderScreen("BREATHING");
-  }, BREATH_INTRO_MS);
+  }, remainMs);
 }
 
 // 호흡 버튼을 누르면 화면 전환 없이 그 자리에서 사이클이 시작된다
@@ -1445,13 +1508,22 @@ function spitBlob(index) {
   emit.appendChild(img);
 }
 
-function runBreathStep(stepIndex) {
+// startAtMs 를 주면 그 단계를 처음부터가 아니라 그 지점부터 이어서 한다.
+// 백그라운드에서 돌아왔을 때만 쓴다. 평소에는 항상 0 이다.
+function runBreathStep(stepIndex, startAtMs) {
   const step = BREATH_STEPS[stepIndex];
   const durationMs = Number(step.duration);
 
+  // 남은 시간이 0 이 되면 transition 이 아예 안 걸리므로 최소값을 둔다
+  const from = Math.max(0, Math.min(durationMs - 50, startAtMs || 0));
+  const remainMs = durationMs - from;
+
+  breathStepIndex = stepIndex;
+  breathStepStartTs = performance.now() - from;
+
   el("breathingHelper").textContent = step.label;
-  el("breathingCircle").style.transitionDuration = durationMs + "ms";
-  el("breathingMouth").style.transitionDuration = durationMs + "ms";
+  el("breathingCircle").style.transitionDuration = remainMs + "ms";
+  el("breathingMouth").style.transitionDuration = remainMs + "ms";
 
   if (step.id === "inhale") {
     setBreathState(true);
@@ -1461,7 +1533,10 @@ function runBreathStep(stepIndex) {
     let at = BLOB_START_MS;
     for (let i = 0; i < BLOB_COUNT; i += 1) {
       const spawnAt = at;
-      blobTimers.push(setTimeout(() => spitBlob(i), spawnAt));
+      // 이어서 시작하는 경우, 이미 지나간 덩어리는 다시 뱉지 않는다
+      if (spawnAt >= from) {
+        blobTimers.push(setTimeout(() => spitBlob(i), spawnAt - from));
+      }
       at += BLOB_GAP_FIRST + i * BLOB_GAP_GROW;
     }
   }
@@ -1481,7 +1556,7 @@ function runBreathStep(stepIndex) {
     } else {
       runBreathStep(0);
     }
-  }, durationMs);
+  }, remainMs);
 }
 
 // ================= BREATH_DONE =================
@@ -1675,6 +1750,8 @@ let bgPauseTimer = null;
 let bgCheckTimer = null;
 // 호흡 사이클을 멈춰 둔 상태인가
 let bgFrozenState = null;
+// 나갈 때의 호흡 단계·진행 시간·원과 입의 실제 크기
+let bgBreath = null;
 
 // AudioParam 에 자동화가 걸린 채로 두면 fadeTo 가 넣는 값과 서로 덮어쓴다.
 // 돌아올 때 예약을 지우고 지금 값에서 다시 출발시킨다.
@@ -1741,6 +1818,28 @@ function freezeScreenForBackground() {
 
   if (currentState === "BREATH_INTRO" || currentState === "BREATHING") {
     bgFrozenState = currentState;
+
+    // ===== 어디까지 했는지 기록해 둔다 =====
+    // 단계와 진행 시간뿐 아니라 원·입이 지금 실제로 어떤 크기인지도 같이
+    // 남긴다. transition 이 도는 중간에 멈춘 것이라 style.transform 에는
+    // 도착 지점만 적혀 있고, 눈에 보이는 크기는 그 중간이기 때문이다.
+    // 계산한 값이 아니라 브라우저가 그리고 있던 값을 그대로 가져온다.
+    const circle = el("breathingCircle");
+    const mouth = el("breathingMouth");
+    if (bgFrozenState === "BREATHING") {
+      bgBreath = {
+        step: breathStepIndex,
+        elapsed: breathStepStartTs === null ? 0 : performance.now() - breathStepStartTs,
+        circle: getComputedStyle(circle).transform,
+        mouth: getComputedStyle(mouth).transform,
+      };
+    } else {
+      bgBreath = {
+        intro: true,
+        elapsed: breathIntroStartTs === null ? 0 : performance.now() - breathIntroStartTs,
+      };
+    }
+
     if (breathStepTimer) { clearTimeout(breathStepTimer); breathStepTimer = null; }
     if (warmRafId) { cancelAnimationFrame(warmRafId); warmRafId = null; }
     warmLastTs = null;
@@ -1748,25 +1847,65 @@ function freezeScreenForBackground() {
     blobTimers = [];
     // 날아가던 덩어리는 지운다. 두면 허공에 멈춘 채로 남는다.
     document.querySelectorAll(".breath__emit").forEach((n) => { n.innerHTML = ""; });
-    trace("백그라운드 — 호흡 멈춤", bgFrozenState + " / 온기 " + Math.round(warmPercent) + "%");
+
+    // 멈춘 그 크기에서 더 움직이지 않게 못 박는다. 이렇게 하지 않으면
+    // 화면이 숨어 있는 동안에도 transition 이 끝까지 가버려서,
+    // 돌아왔을 때 이미 다 부푼 원이 보인다.
+    if (bgBreath.circle && bgBreath.circle !== "none") {
+      circle.style.transition = "none";
+      mouth.style.transition = "none";
+      circle.style.transform = bgBreath.circle;
+      mouth.style.transform = bgBreath.mouth;
+    }
+
+    trace("백그라운드 — 호흡 멈춤",
+      bgFrozenState + " / 온기 " + Math.round(warmPercent) + "%" +
+      (bgBreath.intro ? "" : " / " + BREATH_STEPS[bgBreath.step].id +
+        " " + (bgBreath.elapsed / 1000).toFixed(1) + "초 지점"));
   }
 }
 
 function thawScreenAfterBackground() {
   const was = bgFrozenState;
+  const b = bgBreath;
   bgFrozenState = null;
+  bgBreath = null;
   if (!was || currentState !== was) return;
 
   if (was === "BREATH_INTRO") {
-    // 준비 화면은 통째로 다시 튼다. 3.2 초짜리라 이어 붙일 것이 없다.
-    renderScreen("BREATH_INTRO");
+    const remain = Math.max(300, BREATH_INTRO_MS - ((b && b.elapsed) || 0));
+    trace("복귀 — 호흡 준비 이어서", (remain / 1000).toFixed(1) + "초 남음");
+    startBreathIntroWait(remain);
     return;
   }
 
-  // 온기는 나가기 전 값 그대로 두고, 호흡만 들이쉬기부터 다시 시작한다.
-  // 반쯤 들이쉬던 중간에 이어 붙이면 따라 쉴 수가 없다.
-  trace("복귀 — 호흡 재시작", "온기 " + Math.round(warmPercent) + "% 에서 들이쉬기부터");
-  restartBreathCycle();
+  if (!b) { restartBreathCycle(); return; }
+
+  // ===== 나간 지점 그대로 이어 붙인다 =====
+  // 온기(warmPercent)는 건드리지 않는다. 원과 입은 멈춰 있던 크기에서
+  // 출발해 그 단계의 남은 시간 동안 도착 지점까지 마저 간다.
+  const circle = el("breathingCircle");
+  const mouth = el("breathingMouth");
+
+  circle.style.transition = "none";
+  mouth.style.transition = "none";
+  if (b.circle && b.circle !== "none") circle.style.transform = b.circle;
+  if (b.mouth && b.mouth !== "none") mouth.style.transform = b.mouth;
+
+  // 멈춰 있던 크기가 여기서 실제로 커밋되어야 다음 변경이 transition 을 탄다
+  void circle.getBoundingClientRect().width;
+  void mouth.getBoundingClientRect().width;
+
+  circle.style.transition = "";
+  mouth.style.transition = "";
+
+  const step = BREATH_STEPS[b.step] || BREATH_STEPS[0];
+  trace("복귀 — 호흡 이어서",
+    step.id + " " + (b.elapsed / 1000).toFixed(1) + "초 지점부터 / 온기 " +
+    Math.round(warmPercent) + "%");
+
+  startWarmRise();
+  runBreathStep(b.step, b.elapsed);
 }
 
 function goBackground(reason) {

@@ -28,6 +28,16 @@
 - 이모지나 유니코드 문자(💧🌧️❤️)로 대체 절대 금지.
 - assets 폴더의 SVG를 쓰거나, 없으면 어떤 파일이 필요한지 물어볼 것.
 
+## 소리 파일
+- rain.mp3, breath.mp3 는 loop=true 로 끝없이 도는 파일이다.
+  파일 앞이나 뒤에 무음이 있으면 그 둘이 이어져 "뚝 끊기는" 구간이 된다.
+  소리 파일을 다시 만들면 반드시 앞뒤 무음부터 확인할 것. (원본에도 있었다)
+- 정규화는 원본(sounds/original)에서 2패스 loudnorm 으로 한다. 이미 96k 로
+  줄인 파일을 또 인코딩하지 말 것.
+- 파일을 바꾸면 script.js 의 SOUND src 에 붙은 ?v= 와
+  sw.js 의 AUDIO_ASSETS 를 같이 올린다. vercel.json 이 /sounds/ 를
+  immutable 로 캐시해서 이름만 같으면 1년 동안 옛 파일이 나간다.
+
 ## 폰트
 - index.html <head>에 Pretendard CDN (동적 서브셋. 통짜는 굵기당 766KB라 안 쓴다):
   <link rel="stylesheet" crossorigin
