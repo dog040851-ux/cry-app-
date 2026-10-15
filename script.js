@@ -166,6 +166,7 @@ let refillDoneTimer = null;
 // 두 mp3 는 파일 자체가 EBU R128 -23 LUFS 로 정규화돼 있다.
 // 정규화 후 실측 (ffmpeg loudnorm) :
 //   rain.mp3    -23.39 LUFS / -0.80 dBTP / LRA 1.6  / 467.590s
+//     → v4(웅웅거림 줄임) 뒤 실측 : -24.7 LUFS / -0.9 dBTP / LRA 1.6 / 467.590s (저음을 깎아 1.3 dB 작아짐, 볼륨 값은 그대로)
 //   breath.mp3  -23.44 LUFS / -4.76 dBTP / LRA 9.8  / 248.450s
 // 두 파일 차이가 0.05 dB 라 이제 같은 숫자를 넣으면 같은 크기로 들린다.
 // (예전에는 원본이 20.1 LU 나 차이 나서 트랙마다 값을 따로 맞춰야 했다.)
@@ -208,8 +209,13 @@ const BREATH_VOLUME = 0.95;      // 호흡 화면     : -0.4 dB → 약 -23.4 LU
 // mp3 를 다시 만들 때는 반드시 앞뒤 무음부터 확인할 것.
 // mp3 인코더는 앞에 20ms 안팎의 여백을 자동으로 붙이는데, 크롬은 LAME
 // 갭리스 태그를 읽어 그건 알아서 건너뛴다. 문제가 되는 것은 "내용" 의 무음이다.
+//
+// ===== v4 (rain 만) : 웅웅거림 줄이고 부드럽게 =====
+// 150Hz 아래 컷 + 300Hz 아래 -10dB, 5kHz 이상 -2.5dB. 영위상 EQ 를 파일 전체를 한 바퀴로 이어서 걸어
+// 이음새가 그대로다. 리미터 없이 최고점을 원본(-0.8dBTP) 이하로 맞춰 원본보다 1.3dB 작다 (-24.7 LUFS).
+// 길이·형식(모노 44.1kHz 96kbps)은 그대로. 만드는 방법 : ulmong-ios 저장소 tools/rain/make_rain.sh
 const SOUND = {
-  rain:   { src: "sounds/rain.mp3?v=3",   volume: RAIN_VOLUME_CRYING, fadeIn: 1800, fadeOut: 500 },
+  rain:   { src: "sounds/rain.mp3?v=4",   volume: RAIN_VOLUME_CRYING, fadeIn: 1800, fadeOut: 500 },
   breath: { src: "sounds/breath.mp3?v=3", volume: BREATH_VOLUME,      fadeIn: 1500, fadeOut: 1500 },
 };
 

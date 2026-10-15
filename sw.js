@@ -2,7 +2,7 @@
 //
 // 배포할 때마다 CACHE_VERSION 을 올려야 사용자가 새 파일을 받는다.
 // 이 값이 바뀌면 예전 캐시는 activate 단계에서 통째로 지워진다.
-const CACHE_VERSION = "v17";
+const CACHE_VERSION = "v18";
 const CORE_CACHE = "ulmong-core-" + CACHE_VERSION;
 const RUNTIME_CACHE = "ulmong-runtime-" + CACHE_VERSION;
 
@@ -54,7 +54,7 @@ const CORE_ASSETS = [
 // 여기서 미리 받아둔 것과 실제로 재생하는 것이 어긋나고, 미리 받기가 헛일이 된다.
 // (vercel.json 이 /sounds/ 를 immutable 로 캐시해서 이름만으로는 갱신이 안 된다.)
 const AUDIO_ASSETS = [
-  "/sounds/rain.mp3?v=3",
+  "/sounds/rain.mp3?v=4",
   "/sounds/breath.mp3?v=3",
 ];
 
