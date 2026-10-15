@@ -2,7 +2,7 @@
 //
 // 배포할 때마다 CACHE_VERSION 을 올려야 사용자가 새 파일을 받는다.
 // 이 값이 바뀌면 예전 캐시는 activate 단계에서 통째로 지워진다.
-const CACHE_VERSION = "v16";
+const CACHE_VERSION = "v17";
 const CORE_CACHE = "ulmong-core-" + CACHE_VERSION;
 const RUNTIME_CACHE = "ulmong-runtime-" + CACHE_VERSION;
 
@@ -58,7 +58,7 @@ const AUDIO_ASSETS = [
   "/sounds/breath.mp3?v=3",
 ];
 
-// 온글잎은 13.8KB 서브셋이라 CORE_ASSETS 에 넣어 설치 때 같이 받는다.
+// 온글잎은 29.3KB 서브셋이라 CORE_ASSETS 에 넣어 설치 때 같이 받는다.
 // Pretendard 는 동적 서브셋이라 어떤 조각이 필요한지 미리 알 수 없다.
 // 조각들은 실제로 쓰일 때 아래 fetch 핸들러가 런타임 캐시에 담는다.
 const FONT_ASSETS = [];

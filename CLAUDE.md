@@ -42,7 +42,8 @@
 - index.html <head>에 Pretendard CDN (동적 서브셋. 통짜는 굵기당 766KB라 안 쓴다):
   <link rel="stylesheet" crossorigin
     href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" />
-- style.css 상단에 온글잎 긍정 (CDN 원본 3.15MB → 쓰는 글자만 뽑은 22.3KB 서브셋):
+- style.css 상단에 온글잎 긍정 (CDN 원본 3.15MB → 쓰는 글자만 뽑은 29.3KB(29,292바이트) 서브셋,
+  한글 83자 + 영문·숫자·문장부호 95자 = 178자):
   @font-face {
     font-family: 'Ownglyph_positive';
     src: url('assets/Ownglyph_positive-subset.woff2') format('woff2');
