@@ -46,6 +46,8 @@ const SCREEN_TEXTS = [
     sub: "",
     gaugeLabel: "마음의 온기",
     circleLabel: "호흡",
+    // 호흡 준비 화면 하단 문구. 호흡 원을 눌러야 시작한다 (TestFlight 2차 수정)
+    readyHelper: "호흡 버튼을 클릭해서 호흡을 시작해주세요",
   },
   {
     id: "breathDone", // 1936:5821
@@ -122,7 +124,6 @@ const SCREEN_OUT_MS = (() => {
 // 물 차오름과 % 증가가 모두 이 값 하나에서 나온다. 줄이면 둘 다 같이 빨라진다.
 const SPLASH_DURATION_MS = 7000;
 const CRY_MESSAGE_INTERVAL_MS = 6500; // 시안에 없음
-const BREATH_INTRO_MS = 3200;         // 시안에 없음
 
 // 비 : 개체마다 크기·속도·지연·투명도를 다르게 준다
 const RAIN_DROP_COUNT = 64;
@@ -150,7 +151,6 @@ let breathStepTimer = null;
 // 나간 지점부터 이어 붙이려면 이 둘이 있어야 한다.
 let breathStepIndex = 0;
 let breathStepStartTs = null;
-let breathIntroStartTs = null;
 let warmRafId = null;
 let warmLastTs = null;
 let blobTimers = [];
@@ -178,7 +178,8 @@ let refillDoneTimer = null;
 //   0.56 = -5.0 dB → 약 -28   LUFS
 //
 // 빗소리는 늘 깔려 있고, 누르고 있는 동안에만 커진다.
-const RAIN_VOLUME_IDLE = 0.56;   // 평상시 빗소리 : -5.0 dB → 약 -28   LUFS
+// 평상시 빗소리 : 원래 0.56 (-5.0 dB). TestFlight 2차 수정으로 2/3 (≈0.373, -8.6 dB → 약 -31.6 LUFS)
+const RAIN_VOLUME_IDLE = 0.56 * (2 / 3);
 const RAIN_VOLUME_CRYING = 1.0;  // 누르는 동안   :  0.0 dB → 약 -23   LUFS
 const BREATH_VOLUME = 0.95;      // 호흡 화면     : -0.4 dB → 약 -23.4 LUFS
 
@@ -892,7 +893,10 @@ function setHeart(screenId, percent) {
 
 function activeScreenId(state) {
   switch (state) {
-    case "SPLASH":       return splashPercent === 0 ? "screen-splash" : "screen-splash-loading";
+    // 물 없음(screen-splash)과 차오르는 중(screen-splash-loading)은 내용이 같다.
+    // 둘 사이를 바꾸면 200ms + 200ms 페이드를 타서 제목이 한 번 깜박였다.
+    // TestFlight 2차 수정 : 스플래시는 한 화면으로 보여 주고 숫자·물만 바뀐다.
+    case "SPLASH":       return "screen-splash";
     case "TAP_TO_START": return "screen-tap-start";
     case "HOME":         return hasStartedCrying ? "screen-released" : "screen-home";
     case "CRYING":       return "screen-crying";
@@ -953,7 +957,13 @@ function updateSplashWater() {
       getComputedStyle(document.documentElement).getPropertyValue("--app-scale")
     ) || 1;
   const rect = stageEl.getBoundingClientRect();
-  const surfaceY = rect.top + 812 * (1 - splashFill / 100) * scale;
+  // 0% 는 앱 틀 아래쪽, 100% 는 화면 맨 위보다 (몸통 시작 6px + 출렁임 1.6px) 위.
+  // 그 사이를 고르게 잇는다. 100% 에서 물결선까지 화면 밖으로 넘어가 화면 전체가 물색이 되고
+  // 시작 화면(가장자리·배경 모두 물색)으로 넘어갈 때 튀는 것이 없다 (TestFlight 2차 수정).
+  // 예전 : rect.top + 812 × (1 - 채움) × 배율 → 100% 에서 앱 틀 위쪽까지만 찼다.
+  const surfaceBottom = rect.top + 812 * scale;
+  const surfaceTop = -(6 + 1.6); // style.css .backdrop__water-body top 6px, waveBob ±1.6px
+  const surfaceY = surfaceBottom + (surfaceTop - surfaceBottom) * (splashFill / 100);
   // top 은 .backdrop 기준이다. 배경층이 화면 밖으로 나가 있어도 어긋나지 않게
   // 화면 좌표에서 배경층의 위치를 빼서 넣는다.
   const base = backdropEl.getBoundingClientRect().top;
@@ -1377,7 +1387,9 @@ function renderBreathIntro() {
   el("breathingGaugeLabel").textContent = text.gaugeLabel;
   el("breathingGaugeValue").textContent = Math.round(warmPercent) + "%";
   el("breathingCircleLabel").textContent = text.circleLabel;
-  el("breathingHelper").textContent = BREATH_STEPS[0].label;
+  // 예전에는 첫 들숨 문구를 보여 주고 3.2초 뒤 저절로 시작했다.
+  // TestFlight 2차 수정 : 안내 문구를 보여 주고, 호흡 원을 눌러야만 시작한다.
+  el("breathingHelper").textContent = text.readyHelper;
   setHeart("screen-breathing", warmPercent);
 
   // 첫 들이쉬기가 이어지도록 최소 상태로 맞춰 둔다
@@ -1389,19 +1401,6 @@ function renderBreathIntro() {
   void circle.getBoundingClientRect().width;
   circle.style.transition = "";
   mouth.style.transition = "";
-
-  startBreathIntroWait(BREATH_INTRO_MS);
-}
-
-// 준비 화면에서 호흡이 시작되기까지 기다리는 시간.
-// 백그라운드에서 돌아왔을 때 남은 시간만 다시 걸 수 있게 따로 뺐다.
-function startBreathIntroWait(remainMs) {
-  breathIntroStartTs = performance.now() - (BREATH_INTRO_MS - remainMs);
-  breathStepTimer = setTimeout(() => {
-    if (currentState !== "BREATH_INTRO") return;
-    breathSetIndex = 0;
-    renderScreen("BREATHING");
-  }, remainMs);
 }
 
 // 호흡 버튼을 누르면 화면 전환 없이 그 자리에서 사이클이 시작된다
@@ -1840,10 +1839,8 @@ function freezeScreenForBackground() {
         mouth: getComputedStyle(mouth).transform,
       };
     } else {
-      bgBreath = {
-        intro: true,
-        elapsed: breathIntroStartTs === null ? 0 : performance.now() - breathIntroStartTs,
-      };
+      // 호흡 준비는 버튼을 기다리는 중이라 잴 시간이 없다 (TestFlight 2차 수정)
+      bgBreath = { intro: true, elapsed: 0 };
     }
 
     if (breathStepTimer) { clearTimeout(breathStepTimer); breathStepTimer = null; }
@@ -1878,10 +1875,9 @@ function thawScreenAfterBackground() {
   bgBreath = null;
   if (!was || currentState !== was) return;
 
+  // 호흡 준비는 그대로 버튼을 기다린다 (TestFlight 2차 수정)
   if (was === "BREATH_INTRO") {
-    const remain = Math.max(300, BREATH_INTRO_MS - ((b && b.elapsed) || 0));
-    trace("복귀 — 호흡 준비 이어서", (remain / 1000).toFixed(1) + "초 남음");
-    startBreathIntroWait(remain);
+    trace("복귀 — 호흡 준비", "버튼을 기다린다");
     return;
   }
 

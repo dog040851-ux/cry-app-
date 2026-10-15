@@ -888,11 +888,13 @@ button:hover {
 
    낙하 거리는 중력처럼 시간의 제곱(y = 46τ²)으로 찍어 뒀다.
    그래서 단계 사이는 등속에 가까운 곡선으로 이어야 가속이 그대로 보인다. */
+/* TestFlight 2차 수정 : 20% 빠르게 (6.4s ÷ 1.2, 4.22s ÷ 1.2). 왼쪽 지연도 같은 비율로 줄여
+   "오른쪽 눈물이 입꼬리에 닿는 순간 왼쪽이 시작" 관계를 지킨다. */
 #screen-crying.is-active .cry__tear {
-  animation: tearFall 6.4s cubic-bezier(0.4, 0.2, 0.6, 0.8) infinite backwards;
+  animation: tearFall 5.333s cubic-bezier(0.4, 0.2, 0.6, 0.8) infinite backwards;
 }
 
-#screen-crying.is-active .cry__tear--left { animation-delay: 4.22s; }
+#screen-crying.is-active .cry__tear--left { animation-delay: 3.517s; }
 
 @keyframes tearFall {
   /* 1단계 : 눈 밑에 맺힘 — 작게 나타나 0.64초에 걸쳐 제자리에서 커진다 */
@@ -1095,10 +1097,11 @@ button:hover {
   white-space: nowrap;
 }
 
-/* 다 울었어요 화면의 "조금 더 울기" (1967:35198) */
+/* 다 울었어요 화면의 "조금 더 울기" (1967:35198)
+   TestFlight 2차 수정 : "다 울었어요" 원 바깥 테두리 맨 아래(483 + 34 + 193 = 710)에서 30px 아래 = 740px (원래 739px) */
 .cry-done__more {
   left: 116px;
-  top: 739px;
+  top: 740px;
   width: 144px;
   height: 53px;
   font-weight: 700;
