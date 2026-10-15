@@ -47,7 +47,7 @@ const SCREEN_TEXTS = [
     gaugeLabel: "마음의 온기",
     circleLabel: "호흡",
     // 호흡 준비 화면 하단 문구. 호흡 원을 눌러야 시작한다 (TestFlight 2차 수정)
-    readyHelper: "호흡 버튼을 클릭해서 호흡을 시작해주세요",
+    readyHelper: "준비가 되면 버튼을 눌러 천천히 호흡해 보세요",
   },
   {
     id: "breathDone", // 1936:5821

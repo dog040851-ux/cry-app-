@@ -1098,10 +1098,11 @@ button:hover {
 }
 
 /* 다 울었어요 화면의 "조금 더 울기" (1967:35198)
-   TestFlight 2차 수정 : "다 울었어요" 원 바깥 테두리 맨 아래(483 + 34 + 193 = 710)에서 30px 아래 = 740px (원래 739px) */
+   TestFlight 3차 수정 : "다 울었어요" 원 바깥 테두리 맨 아래(483 + 34 + 193 = 710)에서 29px 아래 = 739px.
+   시안(1936:5656)과 처음 값이 같은 간격이라 처음 값으로 되돌림 (2차에서는 740px) */
 .cry-done__more {
   left: 116px;
-  top: 740px;
+  top: 739px;
   width: 144px;
   height: 53px;
   font-weight: 700;
@@ -1189,8 +1190,10 @@ button:hover {
 
 /* 개인정보처리방침 링크. 새 탭으로 열린다.
    글꼴은 말풍선과 같은 손글씨 그대로, 색과 밑줄로만 구분한다. */
+/* TestFlight 3차 수정 : 글자·밑줄 모두 문장(.bubble__text #111111)과 같은 색. 원래 초록 var(--accent-link, #157F35).
+   밑줄은 따로 색을 주지 않아 글자색을 따른다. */
 .bubble__link {
-  color: var(--accent-link, #157F35);
+  color: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
