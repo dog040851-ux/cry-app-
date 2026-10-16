@@ -123,6 +123,32 @@ const SCREEN_OUT_MS = (() => {
 // 조용하고 느린 앱. 급하게 움직이는 요소가 없어야 한다.
 // 물 차오름과 % 증가가 모두 이 값 하나에서 나온다. 줄이면 둘 다 같이 빨라진다.
 const SPLASH_DURATION_MS = 7000;
+
+// ===== 스플래시 수면 파도 (TestFlight 3차 수정 3, drawSplashSurf) =====
+// 수면 높이 y(x, t) = Σ amp × sin(2π × (x + speed × t) / length + phase)  (아래로 +, px)
+//   amp    : 파도 높이 (위아래 각각). 다 더한 값이 가장 크게 솟거나 꺼지는 폭
+//   length : 물결 하나의 길이. 서로 나누어떨어지지 않게 골라 같은 모양이 되풀이되지 않는다
+//   speed  : 흐르는 속도 px/초. + 는 왼쪽으로 (예전 물결과 같은 방향), − 는 오른쪽으로
+//            반대로 흐르는 물결이 겹치는 곳마다 솟았다 꺼졌다 한다
+//   phase  : 처음 어긋남 (라디안)
+// 예전 물결(그림 한 장) : 높이 ±4.5, 길이 120, 왼쪽 13.3px/초, 위아래 흔들기 ±6 / 6.4초.
+// 아이폰 motion.ts splashSurf 와 같은 값.
+const SPLASH_SURF = {
+  waves: [
+    { amp: 3.2, length: 263, speed: 15, phase: 0 },
+    { amp: 2.2, length: 171, speed: -10, phase: 1.7 },
+    { amp: 1.1, length: 97, speed: 22, phase: 4.1 },
+    { amp: 0.5, length: 61, speed: -17, phase: 2.6 },
+  ],
+  lineWidth: 3, // 물결선 굵기 (wave-splash-a.svg stroke-width, 예전과 같음)
+  stepPx: 4,    // 수면을 몇 px 마다 계산해 잇는가
+};
+const SPLASH_SURF_LINE = "#A9B7C0";  // 물결선 (wave-splash-a.svg stroke)
+const SPLASH_SURF_FILL = "#D3E2E8";  // 물 (--color-water-fill)
+// 수면에서 위아래로 물결선이 닿을 수 있는 가장 먼 거리 = 높이 합 + 선 굵기 절반 (지금 8.5)
+// 물 몸통은 수면 + 이 값부터, 100% 때 수면은 화면 맨 위 − 이 값
+const SPLASH_SURF_PAD =
+  SPLASH_SURF.waves.reduce((sum, w) => sum + w.amp, 0) + SPLASH_SURF.lineWidth / 2;
 const CRY_MESSAGE_INTERVAL_MS = 6500; // 시안에 없음
 
 // 비 : 개체마다 크기·속도·지연·투명도를 다르게 준다
@@ -824,6 +850,8 @@ const screenEls = document.querySelectorAll(".screen");
 const appEl = document.getElementById("app");
 const backdropEl = document.getElementById("backdrop");
 const backdropWaterEl = document.getElementById("backdropWater");
+const splashSurfEl = document.getElementById("splashSurf");
+const backdropWaterBodyEl = document.getElementById("backdropWaterBody");
 const stageEl = document.getElementById("stage");
 const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 const el = (id) => document.getElementById(id);
@@ -946,6 +974,81 @@ function syncBackdrop(screen) {
 
   backdropEl.dataset.splash = String(SPLASH_SCREENS.includes(screen.id));
   updateSplashWater();
+  syncSplashSurf();
+}
+
+// ===== 스플래시 수면 파도 (TestFlight 3차 수정 3) =====
+// 물이 보이는 동안(data-splash true)만 매 프레임 그린다. 숨으면 멈춘다.
+let splashSurfRaf = null;
+let splashSurfLastTs = null;
+let splashSurfT = 0; // 파도 시계 (ms). 프레임 사이 시간을 더한다 (한 번에 최대 100ms — 화면이 멈췄다 돌아와도 건너뛰지 않게)
+
+if (splashSurfEl && backdropWaterBodyEl) {
+  const box = SPLASH_SURF_PAD + 1;
+  splashSurfEl.style.top = -box + "px";
+  splashSurfEl.style.height = box * 2 + "px";
+  backdropWaterBodyEl.style.top = SPLASH_SURF_PAD + "px";
+}
+
+function syncSplashSurf() {
+  if (!splashSurfEl) return;
+  const on = backdropEl.dataset.splash === "true";
+  if (on && splashSurfRaf === null) {
+    splashSurfLastTs = null;
+    splashSurfRaf = requestAnimationFrame(drawSplashSurf);
+  } else if (!on && splashSurfRaf !== null) {
+    cancelAnimationFrame(splashSurfRaf);
+    splashSurfRaf = null;
+  }
+}
+
+function drawSplashSurf(ts) {
+  splashSurfRaf = requestAnimationFrame(drawSplashSurf);
+  if (splashSurfLastTs !== null) splashSurfT += Math.min(ts - splashSurfLastTs, 100);
+  splashSurfLastTs = ts;
+
+  const canvas = splashSurfEl;
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  if (w === 0 || h === 0) return;
+  const dpr = window.devicePixelRatio || 1;
+  const pw = Math.round(w * dpr);
+  const ph = Math.round(h * dpr);
+  if (canvas.width !== pw || canvas.height !== ph) {
+    canvas.width = pw;
+    canvas.height = ph;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  // 수면은 상자 가운데. 화면 밖 한 칸씩 더 그려서 양 끝이 끊기지 않게 한다.
+  const mid = h / 2;
+  const step = SPLASH_SURF.stepPx;
+  const waves = SPLASH_SURF.waves;
+  ctx.beginPath();
+  for (let x = -step; x <= w + step; x += step) {
+    let y = mid;
+    for (let i = 0; i < waves.length; i += 1) {
+      const wv = waves[i];
+      y += wv.amp * Math.sin((2 * Math.PI * (x + (wv.speed / 1000) * splashSurfT)) / wv.length + wv.phase);
+    }
+    if (x === -step) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  // 물 : 수면 아래를 상자 밖까지 채운다 (그 아래는 물 몸통)
+  ctx.save();
+  ctx.lineTo(w + step, h + 10);
+  ctx.lineTo(-step, h + 10);
+  ctx.closePath();
+  ctx.fillStyle = SPLASH_SURF_FILL;
+  ctx.fill();
+  // 물결선 : 같은 경로에 선을 긋는다. 아래로 닫은 선은 상자 밖이라 보이지 않는다
+  ctx.lineJoin = "round";
+  ctx.lineWidth = SPLASH_SURF.lineWidth;
+  ctx.strokeStyle = SPLASH_SURF_LINE;
+  ctx.stroke();
+  ctx.restore();
 }
 
 // 물의 수면 높이를 화면 좌표(px)로 정한다.
@@ -957,13 +1060,13 @@ function updateSplashWater() {
       getComputedStyle(document.documentElement).getPropertyValue("--app-scale")
     ) || 1;
   const rect = stageEl.getBoundingClientRect();
-  // 0% 는 앱 틀 아래쪽, 100% 는 화면 맨 위보다 (물결선 아래 끝 6px + 출렁임 6px) 위.
+  // 0% 는 앱 틀 아래쪽, 100% 는 화면 맨 위보다 SPLASH_SURF_PAD(파도 물결선 아래 끝·몸통 시작, 8.5px) 위.
   // 그 사이를 고르게 잇는다. 100% 에서 물결선까지 화면 밖으로 넘어가 화면 전체가 물색이 되고
   // 시작 화면(가장자리·배경 모두 물색)으로 넘어갈 때 튀는 것이 없다 (TestFlight 2차 수정).
   // 예전 : rect.top + 812 × (1 - 채움) × 배율 → 100% 에서 앱 틀 위쪽까지만 찼다.
   const surfaceBottom = rect.top + 812 * scale;
-  // 물결선 아래 끝 = 수면 + 6px, 가장 아래로 출렁이면 + 6px (style.css waveBobSplash ±6px, TestFlight 3차 수정 2 : 1.6 → 6)
-  const surfaceTop = -(6 + 6);
+  // TestFlight 3차 수정 3 : 수면 파도 (예전 3차 수정 2 : −(6 + 6))
+  const surfaceTop = -SPLASH_SURF_PAD;
   const surfaceY = surfaceBottom + (surfaceTop - surfaceBottom) * (splashFill / 100);
   // top 은 .backdrop 기준이다. 배경층이 화면 밖으로 나가 있어도 어긋나지 않게
   // 화면 좌표에서 배경층의 위치를 빼서 넣는다.

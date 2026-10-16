@@ -185,25 +185,23 @@ button:hover {
   position: absolute;
   left: 0;
   right: 0;
-  /* TestFlight 3차 수정 2 : 6px → 10.4px. 출렁임을 키운 만큼(6 - 1.6) 내려서, 물결이 가장 아래로 내려갔을 때
-     물결선이 몸통에 덮이는 정도를 하트(±1.6)와 같게 둔다. 몸통 위쪽은 물결 그림이 덮는다. */
-  top: 10.4px;
+  /* 파도가 가장 깊게 꺼진 곳(수면 + SPLASH_SURF_PAD 8.5px)부터. script.js 가 같은 값을 넣는다 (TestFlight 3차 수정 3) */
+  top: 8.5px;
   bottom: 0;
   background: var(--color-water-fill);
 }
 
-/* 수면 물결. 화면 밖 요소라 화면 전환과 무관하게 계속 흐른다.
-   TestFlight 3차 수정 2 : 위아래 폭만 ±1.6px → ±6px (waveBobSplash). 흐름·주기·곡선은 하트와 같다.
-   7초 동안 차오르는 수면에서 ±1.6px 은 보이지 않았다. */
-.backdrop__water .wave {
-  animation:
-    waveFlow 9s linear infinite,
-    waveBobSplash 6.4s ease-in-out infinite alternate;
-}
-
-@keyframes waveBobSplash {
-  from { transform: translateY(-6px); }
-  to   { transform: translateY(6px); }
+/* 수면 파도 (TestFlight 3차 수정 3). 물결 그림을 밀고 흔드는 대신 script.js drawSplashSurf 가
+   여러 물결을 더한 수면을 매 프레임 그린다. 화면 폭만 그리고(좌우 200px 넘친 부분 제외),
+   세로 위치·높이는 script.js 가 SPLASH_SURF_PAD 로 넣는다 (수면 위아래 9.5px). */
+.splash__surf {
+  position: absolute;
+  left: 200px;
+  /* canvas 는 left/right 로 늘어나지 않아서 폭을 직접 준다 (물 상자 좌우 200px 넘친 부분 제외) */
+  width: calc(100% - 400px);
+  top: -9.5px;
+  height: 19px;
+  pointer-events: none;
 }
 
 /* ===== 앱 컨테이너 =====
@@ -433,13 +431,6 @@ button:hover {
 @keyframes waveBob {
   from { transform: translateY(-1.6px); }
   to   { transform: translateY(1.6px); }
-}
-
-/* 물결 기준선이 타일 위에서 10px 지점이라 그만큼 올려야
-   수면이 물 컨테이너 맨 위에 정확히 붙는다. */
-.splash__wave {
-  top: -10px;
-  background-image: url('assets/wave-splash-a.svg');
 }
 
 /* 화면 정중앙. 글자 상자의 실제 높이를 기준으로 가운데를 맞춘다.

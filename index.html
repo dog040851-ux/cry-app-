@@ -50,8 +50,9 @@
      내용은 없고 배경만 그린다. -->
 <div class="backdrop" id="backdrop" aria-hidden="true">
   <div class="backdrop__water" id="backdropWater">
-    <div class="wave splash__wave"></div>
-    <div class="backdrop__water-body"></div>
+    <!-- 수면 파도 : script.js drawSplashSurf 가 매 프레임 그린다 (TestFlight 3차 수정 3) -->
+    <canvas class="splash__surf" id="splashSurf"></canvas>
+    <div class="backdrop__water-body" id="backdropWaterBody"></div>
   </div>
 </div>
 
