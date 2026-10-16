@@ -185,22 +185,22 @@ button:hover {
   position: absolute;
   left: 0;
   right: 0;
-  /* 파도가 가장 깊게 꺼진 곳(수면 + SPLASH_SURF_PAD 8.5px)부터. script.js 가 같은 값을 넣는다 (TestFlight 3차 수정 3) */
-  top: 8.5px;
+  /* 파도가 가장 깊게 꺼진 곳(수면 + SPLASH_SURF_PAD 12px)부터. script.js 가 같은 값을 넣는다 (TestFlight 3차 수정 3, 7) */
+  top: 12px;
   bottom: 0;
   background: var(--color-water-fill);
 }
 
 /* 수면 파도 (TestFlight 3차 수정 3). 물결 그림을 밀고 흔드는 대신 script.js drawSplashSurf 가
    여러 물결을 더한 수면을 매 프레임 그린다. 화면 폭만 그리고(좌우 200px 넘친 부분 제외),
-   세로 위치·높이는 script.js 가 SPLASH_SURF_PAD 로 넣는다 (수면 위아래 9.5px). */
+   세로 위치·높이는 script.js 가 SPLASH_SURF_PAD 로 넣는다 (수면 위아래 13px). */
 .splash__surf {
   position: absolute;
   left: 200px;
   /* canvas 는 left/right 로 늘어나지 않아서 폭을 직접 준다 (물 상자 좌우 200px 넘친 부분 제외) */
   width: calc(100% - 400px);
-  top: -9.5px;
-  height: 19px;
+  top: -13px;
+  height: 26px;
   pointer-events: none;
 }
 

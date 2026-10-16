@@ -136,17 +136,18 @@ const SPLASH_DURATION_MS = 7000;
 // 아이폰 motion.ts splashSurf 와 같은 값.
 const SPLASH_SURF = {
   waves: [
-    { amp: 3.2, length: 263, speed: 15, phase: 0 },
-    { amp: 2.2, length: 171, speed: 10, phase: 1.7 },
-    { amp: 1.1, length: 97, speed: 22, phase: 4.1 },
-    { amp: 0.5, length: 61, speed: 17, phase: 2.6 },
+    // TestFlight 3차 수정 7 : 높이 1.5배 (3.2/2.2/1.1/0.5 → 아래), 속도 2배 (15/10/22/17 → 아래). 길이·처음 모양 그대로
+    { amp: 4.8, length: 263, speed: 30, phase: 0 },
+    { amp: 3.3, length: 171, speed: 20, phase: 1.7 },
+    { amp: 1.65, length: 97, speed: 44, phase: 4.1 },
+    { amp: 0.75, length: 61, speed: 34, phase: 2.6 },
   ],
   lineWidth: 3, // 물결선 굵기 (wave-splash-a.svg stroke-width, 예전과 같음)
   stepPx: 4,    // 수면을 몇 px 마다 계산해 잇는가
 };
 const SPLASH_SURF_LINE = "#A9B7C0";  // 물결선 (wave-splash-a.svg stroke)
 const SPLASH_SURF_FILL = "#D3E2E8";  // 물 (--color-water-fill)
-// 수면에서 위아래로 물결선이 닿을 수 있는 가장 먼 거리 = 높이 합 + 선 굵기 절반 (지금 8.5)
+// 수면에서 위아래로 물결선이 닿을 수 있는 가장 먼 거리 = 높이 합 + 선 굵기 절반 (지금 10.5 + 1.5 = 12)
 // 물 몸통은 수면 + 이 값부터, 100% 때 수면은 화면 맨 위 − 이 값
 const SPLASH_SURF_PAD =
   SPLASH_SURF.waves.reduce((sum, w) => sum + w.amp, 0) + SPLASH_SURF.lineWidth / 2;
