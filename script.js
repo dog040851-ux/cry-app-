@@ -129,23 +129,20 @@ const SPLASH_DURATION_MS = 7000;
 //   amp    : 파도 높이 (위아래 각각). 다 더한 값이 가장 크게 솟거나 꺼지는 폭
 //   length : 물결 하나의 길이. 서로 나누어떨어지지 않게 골라 같은 모양이 되풀이되지 않는다
 //   speed  : 흐르는 속도 px/초. + 는 왼쪽으로 (예전 물결과 같은 방향), − 는 오른쪽으로
-//            반대로 흐르는 물결이 겹치는 곳마다 솟았다 꺼졌다 한다
+//            TestFlight 3차 수정 5 : 넷 다 왼쪽 (원래 2·4번째는 −10·−17 로 오른쪽). 속도 크기는 그대로.
+//            서로 빠르기가 달라 흐르면서 겹치는 모양이 계속 바뀐다
 //   phase  : 처음 어긋남 (라디안)
 // 예전 물결(그림 한 장) : 높이 ±4.5, 길이 120, 왼쪽 13.3px/초, 위아래 흔들기 ±6 / 6.4초.
 // 아이폰 motion.ts splashSurf 와 같은 값.
 const SPLASH_SURF = {
   waves: [
     { amp: 3.2, length: 263, speed: 15, phase: 0 },
-    { amp: 2.2, length: 171, speed: -10, phase: 1.7 },
+    { amp: 2.2, length: 171, speed: 10, phase: 1.7 },
     { amp: 1.1, length: 97, speed: 22, phase: 4.1 },
-    { amp: 0.5, length: 61, speed: -17, phase: 2.6 },
+    { amp: 0.5, length: 61, speed: 17, phase: 2.6 },
   ],
   lineWidth: 3, // 물결선 굵기 (wave-splash-a.svg stroke-width, 예전과 같음)
   stepPx: 4,    // 수면을 몇 px 마다 계산해 잇는가
-  // 좌우 출렁임 (TestFlight 3차 수정 4, 거스트너 파도). 수면의 점이 위아래뿐 아니라 좌우로도 움직여 작은 원을 그린다.
-  //   0 = 좌우 움직임 없음, 1 = 물결선이 꼬이기 바로 직전 (마루가 뾰족해짐). 1 보다 작으면 꼬이거나 겹치지 않는다.
-  //   지금 0.6 → 점이 좌우로 최대 약 ±15px (물결별 ±6.9 / 4.7 / 2.4 / 1.1)
-  sway: 0.6,
 };
 const SPLASH_SURF_LINE = "#A9B7C0";  // 물결선 (wave-splash-a.svg stroke)
 const SPLASH_SURF_FILL = "#D3E2E8";  // 물 (--color-water-fill)
@@ -153,12 +150,6 @@ const SPLASH_SURF_FILL = "#D3E2E8";  // 물 (--color-water-fill)
 // 물 몸통은 수면 + 이 값부터, 100% 때 수면은 화면 맨 위 − 이 값
 const SPLASH_SURF_PAD =
   SPLASH_SURF.waves.reduce((sum, w) => sum + w.amp, 0) + SPLASH_SURF.lineWidth / 2;
-// 좌우 출렁임 세기 Q. 점 x0 는 물결마다 x = x0 − Q × amp × cos(θ), y = amp × sin(θ) 로 움직인다.
-// 꼬이지 않을 조건 1 − Q × Σ(amp × 2π/length) > 0 → Q = sway / Σ(amp × 2π/length)
-const SPLASH_SURF_Q =
-  SPLASH_SURF.sway / SPLASH_SURF.waves.reduce((sum, w) => sum + (w.amp * 2 * Math.PI) / w.length, 0);
-// 점이 좌우로 가장 멀리 가는 거리 (화면 양 끝이 비지 않게 그만큼 더 바깥부터 계산한다)
-const SPLASH_SURF_SWAY_MAX = SPLASH_SURF_Q * SPLASH_SURF.waves.reduce((sum, w) => sum + w.amp, 0);
 const CRY_MESSAGE_INTERVAL_MS = 6500; // 시안에 없음
 
 // 비 : 개체마다 크기·속도·지연·투명도를 다르게 준다
@@ -1032,30 +1023,24 @@ function drawSplashSurf(ts) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
 
-  // 수면은 상자 가운데. 점 x0 마다 θ = 2π × (x0 + speed × t) / length + phase
-  //   y = Σ amp × sin(θ), x = x0 − Q × Σ amp × cos(θ) (좌우 출렁임)
-  // 화면 밖으로 (한 칸 + 좌우 최대 거리)만큼 더 그려서 양 끝이 끊기지 않게 한다.
+  // 수면은 상자 가운데. 화면 밖 한 칸씩 더 그려서 양 끝이 끊기지 않게 한다.
   const mid = h / 2;
   const step = SPLASH_SURF.stepPx;
   const waves = SPLASH_SURF.waves;
-  const margin = step + SPLASH_SURF_SWAY_MAX;
   ctx.beginPath();
-  for (let x0 = -margin; x0 <= w + margin; x0 += step) {
-    let x = x0;
+  for (let x = -step; x <= w + step; x += step) {
     let y = mid;
     for (let i = 0; i < waves.length; i += 1) {
       const wv = waves[i];
-      const theta = (2 * Math.PI * (x0 + (wv.speed / 1000) * splashSurfT)) / wv.length + wv.phase;
-      y += wv.amp * Math.sin(theta);
-      x -= SPLASH_SURF_Q * wv.amp * Math.cos(theta);
+      y += wv.amp * Math.sin((2 * Math.PI * (x + (wv.speed / 1000) * splashSurfT)) / wv.length + wv.phase);
     }
-    if (x0 === -margin) ctx.moveTo(x, y);
+    if (x === -step) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
   // 물 : 수면 아래를 상자 밖까지 채운다 (그 아래는 물 몸통)
   ctx.save();
-  ctx.lineTo(w + margin * 2, h + 10);
-  ctx.lineTo(-margin * 2, h + 10);
+  ctx.lineTo(w + step, h + 10);
+  ctx.lineTo(-step, h + 10);
   ctx.closePath();
   ctx.fillStyle = SPLASH_SURF_FILL;
   ctx.fill();
