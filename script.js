@@ -142,6 +142,10 @@ const SPLASH_SURF = {
   ],
   lineWidth: 3, // 물결선 굵기 (wave-splash-a.svg stroke-width, 예전과 같음)
   stepPx: 4,    // 수면을 몇 px 마다 계산해 잇는가
+  // 좌우 출렁임 (TestFlight 3차 수정 4, 거스트너 파도). 수면의 점이 위아래뿐 아니라 좌우로도 움직여 작은 원을 그린다.
+  //   0 = 좌우 움직임 없음, 1 = 물결선이 꼬이기 바로 직전 (마루가 뾰족해짐). 1 보다 작으면 꼬이거나 겹치지 않는다.
+  //   지금 0.6 → 점이 좌우로 최대 약 ±15px (물결별 ±6.9 / 4.7 / 2.4 / 1.1)
+  sway: 0.6,
 };
 const SPLASH_SURF_LINE = "#A9B7C0";  // 물결선 (wave-splash-a.svg stroke)
 const SPLASH_SURF_FILL = "#D3E2E8";  // 물 (--color-water-fill)
@@ -149,6 +153,12 @@ const SPLASH_SURF_FILL = "#D3E2E8";  // 물 (--color-water-fill)
 // 물 몸통은 수면 + 이 값부터, 100% 때 수면은 화면 맨 위 − 이 값
 const SPLASH_SURF_PAD =
   SPLASH_SURF.waves.reduce((sum, w) => sum + w.amp, 0) + SPLASH_SURF.lineWidth / 2;
+// 좌우 출렁임 세기 Q. 점 x0 는 물결마다 x = x0 − Q × amp × cos(θ), y = amp × sin(θ) 로 움직인다.
+// 꼬이지 않을 조건 1 − Q × Σ(amp × 2π/length) > 0 → Q = sway / Σ(amp × 2π/length)
+const SPLASH_SURF_Q =
+  SPLASH_SURF.sway / SPLASH_SURF.waves.reduce((sum, w) => sum + (w.amp * 2 * Math.PI) / w.length, 0);
+// 점이 좌우로 가장 멀리 가는 거리 (화면 양 끝이 비지 않게 그만큼 더 바깥부터 계산한다)
+const SPLASH_SURF_SWAY_MAX = SPLASH_SURF_Q * SPLASH_SURF.waves.reduce((sum, w) => sum + w.amp, 0);
 const CRY_MESSAGE_INTERVAL_MS = 6500; // 시안에 없음
 
 // 비 : 개체마다 크기·속도·지연·투명도를 다르게 준다
@@ -1022,24 +1032,30 @@ function drawSplashSurf(ts) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
 
-  // 수면은 상자 가운데. 화면 밖 한 칸씩 더 그려서 양 끝이 끊기지 않게 한다.
+  // 수면은 상자 가운데. 점 x0 마다 θ = 2π × (x0 + speed × t) / length + phase
+  //   y = Σ amp × sin(θ), x = x0 − Q × Σ amp × cos(θ) (좌우 출렁임)
+  // 화면 밖으로 (한 칸 + 좌우 최대 거리)만큼 더 그려서 양 끝이 끊기지 않게 한다.
   const mid = h / 2;
   const step = SPLASH_SURF.stepPx;
   const waves = SPLASH_SURF.waves;
+  const margin = step + SPLASH_SURF_SWAY_MAX;
   ctx.beginPath();
-  for (let x = -step; x <= w + step; x += step) {
+  for (let x0 = -margin; x0 <= w + margin; x0 += step) {
+    let x = x0;
     let y = mid;
     for (let i = 0; i < waves.length; i += 1) {
       const wv = waves[i];
-      y += wv.amp * Math.sin((2 * Math.PI * (x + (wv.speed / 1000) * splashSurfT)) / wv.length + wv.phase);
+      const theta = (2 * Math.PI * (x0 + (wv.speed / 1000) * splashSurfT)) / wv.length + wv.phase;
+      y += wv.amp * Math.sin(theta);
+      x -= SPLASH_SURF_Q * wv.amp * Math.cos(theta);
     }
-    if (x === -step) ctx.moveTo(x, y);
+    if (x0 === -margin) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
   // 물 : 수면 아래를 상자 밖까지 채운다 (그 아래는 물 몸통)
   ctx.save();
-  ctx.lineTo(w + step, h + 10);
-  ctx.lineTo(-step, h + 10);
+  ctx.lineTo(w + margin * 2, h + 10);
+  ctx.lineTo(-margin * 2, h + 10);
   ctx.closePath();
   ctx.fillStyle = SPLASH_SURF_FILL;
   ctx.fill();
