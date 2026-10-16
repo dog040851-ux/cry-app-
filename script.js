@@ -957,12 +957,13 @@ function updateSplashWater() {
       getComputedStyle(document.documentElement).getPropertyValue("--app-scale")
     ) || 1;
   const rect = stageEl.getBoundingClientRect();
-  // 0% 는 앱 틀 아래쪽, 100% 는 화면 맨 위보다 (몸통 시작 6px + 출렁임 1.6px) 위.
+  // 0% 는 앱 틀 아래쪽, 100% 는 화면 맨 위보다 (물결선 아래 끝 6px + 출렁임 6px) 위.
   // 그 사이를 고르게 잇는다. 100% 에서 물결선까지 화면 밖으로 넘어가 화면 전체가 물색이 되고
   // 시작 화면(가장자리·배경 모두 물색)으로 넘어갈 때 튀는 것이 없다 (TestFlight 2차 수정).
   // 예전 : rect.top + 812 × (1 - 채움) × 배율 → 100% 에서 앱 틀 위쪽까지만 찼다.
   const surfaceBottom = rect.top + 812 * scale;
-  const surfaceTop = -(6 + 1.6); // style.css .backdrop__water-body top 6px, waveBob ±1.6px
+  // 물결선 아래 끝 = 수면 + 6px, 가장 아래로 출렁이면 + 6px (style.css waveBobSplash ±6px, TestFlight 3차 수정 2 : 1.6 → 6)
+  const surfaceTop = -(6 + 6);
   const surfaceY = surfaceBottom + (surfaceTop - surfaceBottom) * (splashFill / 100);
   // top 은 .backdrop 기준이다. 배경층이 화면 밖으로 나가 있어도 어긋나지 않게
   // 화면 좌표에서 배경층의 위치를 빼서 넣는다.

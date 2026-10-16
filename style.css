@@ -185,16 +185,25 @@ button:hover {
   position: absolute;
   left: 0;
   right: 0;
-  top: 6px;
+  /* TestFlight 3차 수정 2 : 6px → 10.4px. 출렁임을 키운 만큼(6 - 1.6) 내려서, 물결이 가장 아래로 내려갔을 때
+     물결선이 몸통에 덮이는 정도를 하트(±1.6)와 같게 둔다. 몸통 위쪽은 물결 그림이 덮는다. */
+  top: 10.4px;
   bottom: 0;
   background: var(--color-water-fill);
 }
 
-/* 수면 물결. 화면 밖 요소라 화면 전환과 무관하게 계속 흐른다. */
+/* 수면 물결. 화면 밖 요소라 화면 전환과 무관하게 계속 흐른다.
+   TestFlight 3차 수정 2 : 위아래 폭만 ±1.6px → ±6px (waveBobSplash). 흐름·주기·곡선은 하트와 같다.
+   7초 동안 차오르는 수면에서 ±1.6px 은 보이지 않았다. */
 .backdrop__water .wave {
   animation:
     waveFlow 9s linear infinite,
-    waveBob 6.4s ease-in-out infinite alternate;
+    waveBobSplash 6.4s ease-in-out infinite alternate;
+}
+
+@keyframes waveBobSplash {
+  from { transform: translateY(-6px); }
+  to   { transform: translateY(6px); }
 }
 
 /* ===== 앱 컨테이너 =====
@@ -1190,10 +1199,11 @@ button:hover {
 
 /* 개인정보처리방침 링크. 새 탭으로 열린다.
    글꼴은 말풍선과 같은 손글씨 그대로, 색과 밑줄로만 구분한다. */
-/* TestFlight 3차 수정 : 글자·밑줄 모두 문장(.bubble__text #111111)과 같은 색. 원래 초록 var(--accent-link, #157F35).
+/* TestFlight 3차 수정 2 : 글자·밑줄 모두 마지막 문장(.bubble__text--note em #157F35)과 같은 색.
+   (3차 수정 1 에서는 문장색 inherit #111111. 처음 값은 var(--accent-link, #157F35))
    밑줄은 따로 색을 주지 않아 글자색을 따른다. */
 .bubble__link {
-  color: inherit;
+  color: #157F35;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
